@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Container, Box, Typography, CssBaseline, ThemeProvider, createTheme, AppBar, Toolbar,
-  Snackbar, Alert, Button
+  Snackbar, Alert
 } from '@mui/material';
 import ListSelector from './components/ListSelector';
 import IngredientList from './components/IngredientList';
