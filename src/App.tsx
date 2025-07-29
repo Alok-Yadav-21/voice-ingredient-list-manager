@@ -168,19 +168,6 @@ function App() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             Voice Ingredient List Manager
           </Typography>
-          <Button 
-            variant="outlined" 
-            size="small"
-            onClick={() => {
-              console.log('=== TEST BUTTON DEBUG ===');
-              console.log('Current lists:', lists);
-              console.log('Current list ID:', currentListId);
-              createNewList('Test List ' + new Date().toLocaleTimeString());
-            }}
-            sx={{ fontSize: '0.7rem', backgroundColor: 'orange', color: 'white' }}
-          >
-            Test Create
-          </Button>
         </Toolbar>
       </AppBar>
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
