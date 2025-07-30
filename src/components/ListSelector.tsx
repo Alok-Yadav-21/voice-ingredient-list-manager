@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, List, ListItemButton, ListItemText, ListItemSecondaryAction,
-  IconButton, useMediaQuery, useTheme, Chip, Divider
+  IconButton, useMediaQuery, useTheme, Chip
 } from '@mui/material';
 import { Delete as DeleteIcon, Add as AddIcon, Mic as MicIcon, GetApp as DownloadIcon } from "@mui/icons-material";
 import VoiceInputModal from "./VoiceInputModal";
@@ -39,7 +39,6 @@ const ListSelector = ({
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
 
   const handleCreateList = () => {
     if (newListName.trim()) {
