@@ -265,19 +265,20 @@ const IngredientList = ({ list, numberOfPeople, onUpdateList }: IngredientListPr
       
       mainIngredients.forEach((ingredient, ingredientIndex, ingredientArray) => {
         const subIngredients = getSubIngredients(ingredient.id);
+        const isLastCategory = ingredientIndex === ingredientArray.length - 1;
+        
+        // Add category heading (always include all categories)
+        pdfContent += `
+          <div style="margin-bottom: ${isLastCategory ? '0px' : '20px'}; page-break-inside: avoid; break-inside: avoid; page-break-before: auto;">
+            <h2 style="color: #1976d2; margin: 0 0 15px 0; font-size: 22px; border-bottom: 1px solid #ddd; padding-bottom: 5px; page-break-after: avoid;">
+              ${ingredient.name}
+            </h2>
+        `;
         
         if (subIngredients.length > 0) {
-          const isLastCategory = ingredientIndex === ingredientArray.length - 1;
-          // Add category heading
-          pdfContent += `
-            <div style="margin-bottom: ${isLastCategory ? '0px' : '20px'}; page-break-inside: avoid; break-inside: avoid; page-break-before: auto;">
-              <h2 style="color: #1976d2; margin: 0 0 15px 0; font-size: 22px; border-bottom: 1px solid #ddd; padding-bottom: 5px; page-break-after: avoid;">
-                ${ingredient.name}
-              </h2>
-              <div style="margin-left: 20px; page-break-inside: avoid;">
-          `;
+          // Add sub-ingredients if they exist
+          pdfContent += `<div style="margin-left: 20px; page-break-inside: avoid;">`;
           
-          // Add sub-ingredients
           subIngredients.forEach((subIngredient, index, array) => {
             const scaledQuantity = subIngredient.baseQuantity * numberOfPeople;
             const isLastItem = index === array.length - 1;
@@ -293,8 +294,17 @@ const IngredientList = ({ list, numberOfPeople, onUpdateList }: IngredientListPr
             `;
           });
           
-          pdfContent += '</div></div>';
+          pdfContent += '</div>';
+        } else {
+          // Add message for empty categories
+          pdfContent += `
+            <div style="margin-left: 20px; padding: 12px; background-color: #f9f9f9; border-radius: 4px; font-style: italic; color: #666;">
+              No items added yet
+            </div>
+          `;
         }
+        
+        pdfContent += '</div>';
       });
       
       pdfContent += '</div>';
