@@ -8,6 +8,17 @@ import { Delete as DeleteIcon, Add as AddIcon, Mic as MicIcon, GetApp as Downloa
 import VoiceInputModal from "./VoiceInputModal";
 import type { IngredientListData } from '../types';
 
+interface ListSelectorProps {
+  lists: IngredientListData[];
+  currentListId: string | null;
+  onListSelect: (id: string) => void;
+  onCreateList: (name: string) => void;
+  onDeleteList: (id: string) => void;
+  onClearAllLists: () => void;
+  onResetApp: () => void;
+  onDownloadPDF: (list: IngredientListData) => void;
+}
+
 const ListSelector = ({ 
   lists, 
   currentListId, 
@@ -17,7 +28,7 @@ const ListSelector = ({
   onClearAllLists, 
   onResetApp,
   onDownloadPDF
-}) => {
+}: ListSelectorProps) => {
   const [openDialog, setOpenDialog] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; listId: string | null }>({ open: false, listId: null });
@@ -53,14 +64,14 @@ const ListSelector = ({
     setDeleteDialog({ open: false, listId: null });
   };
 
-  const handleVoiceInput = (result) => {
+  const handleVoiceInput = (result: { text: string }) => {
     if (result.text && result.text.trim()) {
       onCreateList(result.text.trim());
       setOpenVoiceCreateModal(false);
     }
   };
 
-  const downloadListPDF = (list) => {
+  const downloadListPDF = (list: IngredientListData) => {
     if (onDownloadPDF) {
       onDownloadPDF(list);
     }
