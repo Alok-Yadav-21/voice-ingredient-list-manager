@@ -1,49 +1,64 @@
 
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { useState, useEffect } from 'react';
 import {
-  Card, CardContent, Typography, Button, List, ListItem, ListItemText, ListItemSecondaryAction, IconButton, Box, TextField, Dialog, DialogTitle, DialogContent, DialogActions, FormControl, InputLabel, Select, MenuItem, Collapse, ListItemButton
+  Box, Typography, Button, TextField, List, ListItem, ListItemText, ListItemSecondaryAction,
+  IconButton, Dialog, DialogTitle, DialogContent, DialogActions, useMediaQuery, useTheme,
+  Collapse, Chip, Divider
 } from '@mui/material';
-import { Delete as DeleteIcon, Edit as EditIcon, Add as AddIcon, Mic as MicIcon, GetApp as DownloadIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from '@mui/icons-material';
+import { 
+  Delete as DeleteIcon, 
+  Edit as EditIcon, 
+  Add as AddIcon, 
+  Mic as MicIcon, 
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  GetApp as DownloadIcon
+} from "@mui/icons-material";
+import VoiceInputModal from "./VoiceInputModal";
 import type { IngredientListData, Ingredient } from '../types';
-import VoiceInputModal from './VoiceInputModal';
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
-interface IngredientListProps {
-  list: IngredientListData;
-  numberOfPeople: number;
-  onUpdateList: (list: IngredientListData) => void;
-}
-
-const IngredientList = ({ list, numberOfPeople, onUpdateList }: IngredientListProps) => {
-  const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
-  const [openAddDialog, setOpenAddDialog] = useState(false);
+const IngredientList = ({ list, numberOfPeople, onUpdateList }) => {
+  const [newIngredient, setNewIngredient] = useState({ name: '', quantity: '', unit: '' });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
   const [openVoiceModal, setOpenVoiceModal] = useState(false);
-  const [newIngredient, setNewIngredient] = useState({ name: '', quantity: 1, unit: 'pieces' });
+  const [openSubIngredientVoiceModal, setOpenSubIngredientVoiceModal] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [openSubIngredientDialog, setOpenSubIngredientDialog] = useState(false);
   const [selectedParentIngredient, setSelectedParentIngredient] = useState<Ingredient | null>(null);
-  const [newSubIngredient, setNewSubIngredient] = useState({ name: '', quantity: 1, unit: 'pieces' });
-  const [openSubIngredientVoiceModal, setOpenSubIngredientVoiceModal] = useState(false);
-  const [voiceInputField, setVoiceInputField] = useState<'name' | 'quantity' | null>(null);
-  const [quantityInputValue, setQuantityInputValue] = useState('1');
-  const [isQuantityEditing, setIsQuantityEditing] = useState(false);
+  const [newSubIngredient, setNewSubIngredient] = useState({ name: '', quantity: '', unit: '' });
 
-  // Sync quantity input value with newSubIngredient state
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  // Listen for PDF export events from ListSelector
   useEffect(() => {
-    if (!isQuantityEditing) {
-      setQuantityInputValue(newSubIngredient.quantity.toString());
-    }
-  }, [newSubIngredient.quantity, isQuantityEditing]);
+    const handleExportEvent = (event: CustomEvent) => {
+      if (event.detail.listId === list.id) {
+        exportPDF();
+      }
+    };
 
-  const commonUnits = [
-    'pieces', 'kg', 'g', 'liters', 'ml', 'cups', 'tablespoons', 'teaspoons',
-    'pounds', 'ounces', 'quarts', 'pints', 'bunches', 'heads', 'cloves'
-  ];
+    window.addEventListener('exportPDF', handleExportEvent as EventListener);
+    
+    return () => {
+      window.removeEventListener('exportPDF', handleExportEvent as EventListener);
+    };
+  }, [list.id]);
+
+  // Get main ingredients (categories) only
+  const mainIngredients = list.ingredients.filter(ingredient => !ingredient.isSubIngredient);
+
+  // Get sub-ingredients for a specific parent
+  const getSubIngredients = (parentId: string) => {
+    return list.ingredients.filter(ingredient => ingredient.parentId === parentId);
+  };
 
   const addIngredient = () => {
     if (newIngredient.name.trim()) {
-      // Check if ingredient with same name already exists
+      // Check for duplicate names
       const existingIngredient = list.ingredients.find(ing => 
         ing.name.toLowerCase() === newIngredient.name.trim().toLowerCase() && !ing.isSubIngredient
       );
@@ -52,62 +67,56 @@ const IngredientList = ({ list, numberOfPeople, onUpdateList }: IngredientListPr
         alert('A category with this name already exists. Please use a different name.');
         return;
       }
-      
+
       const ingredient: Ingredient = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         name: newIngredient.name.trim(),
-        quantity: 0, // Main ingredients are just categories
+        quantity: 0,
         unit: '',
         baseQuantity: 0,
         baseUnit: '',
+        subIngredients: []
       };
+      
       const updatedList = {
         ...list,
         ingredients: [...list.ingredients, ingredient],
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       onUpdateList(updatedList);
-      setNewIngredient({ name: '', quantity: 1, unit: 'pieces' });
-      setOpenAddDialog(false);
-      console.log('Added ingredient:', ingredient.name, 'Total ingredients:', updatedList.ingredients.length);
+      setNewIngredient({ name: '', quantity: '', unit: '' });
     }
   };
 
-  const updateIngredient = () => {
-    if (editingIngredient && editingIngredient.name.trim()) {
-      const updatedIngredients = list.ingredients.map(ing =>
-        ing.id === editingIngredient.id ? {
-          ...editingIngredient,
-          quantity: editingIngredient.baseQuantity * numberOfPeople,
-        } : ing
-      );
-      const updatedList = {
-        ...list,
-        ingredients: updatedIngredients,
-        updatedAt: new Date().toISOString(),
-      };
-      onUpdateList(updatedList);
-      setEditingIngredient(null);
-    }
-  };
-
-  const deleteIngredient = (id: string) => {
-    // Remove the ingredient and all its sub-ingredients
-    const updatedIngredients = list.ingredients.filter(ing => ing.id !== id && ing.parentId !== id);
+  const updateIngredient = (id: string, field: keyof Ingredient, value: any) => {
     const updatedList = {
       ...list,
-      ingredients: updatedIngredients,
-      updatedAt: new Date().toISOString(),
+      ingredients: list.ingredients.map(ingredient =>
+        ingredient.id === id ? { ...ingredient, [field]: value } : ingredient
+      ),
+      updatedAt: new Date().toISOString()
     };
     onUpdateList(updatedList);
   };
 
-  const toggleExpanded = (ingredientId: string) => {
+  const deleteIngredient = (id: string) => {
+    // Delete the main ingredient and all its sub-ingredients
+    const updatedList = {
+      ...list,
+      ingredients: list.ingredients.filter(ingredient => 
+        ingredient.id !== id && ingredient.parentId !== id
+      ),
+      updatedAt: new Date().toISOString()
+    };
+    onUpdateList(updatedList);
+  };
+
+  const toggleExpanded = (id: string) => {
     const newExpanded = new Set(expandedItems);
-    if (newExpanded.has(ingredientId)) {
-      newExpanded.delete(ingredientId);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
     } else {
-      newExpanded.add(ingredientId);
+      newExpanded.add(id);
     }
     setExpandedItems(newExpanded);
   };
@@ -117,45 +126,40 @@ const IngredientList = ({ list, numberOfPeople, onUpdateList }: IngredientListPr
       const subIngredient: Ingredient = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         name: newSubIngredient.name.trim(),
-        quantity: newSubIngredient.quantity * numberOfPeople,
-        unit: newSubIngredient.unit,
-        baseQuantity: newSubIngredient.quantity,
-        baseUnit: newSubIngredient.unit,
+        quantity: parseFloat(newSubIngredient.quantity) || 0,
+        unit: newSubIngredient.unit.trim(),
+        baseQuantity: parseFloat(newSubIngredient.quantity) || 0,
+        baseUnit: newSubIngredient.unit.trim(),
         parentId: selectedParentIngredient.id,
-        isSubIngredient: true,
+        isSubIngredient: true
       };
-      
-      const updatedIngredients = [...list.ingredients, subIngredient];
+
       const updatedList = {
         ...list,
-        ingredients: updatedIngredients,
-        updatedAt: new Date().toISOString(),
+        ingredients: [...list.ingredients, subIngredient],
+        updatedAt: new Date().toISOString()
       };
       onUpdateList(updatedList);
-      setNewSubIngredient({ name: '', quantity: 1, unit: 'pieces' });
-      setQuantityInputValue('1');
-      setIsQuantityEditing(false);
+      setNewSubIngredient({ name: '', quantity: '', unit: '' });
       setOpenSubIngredientDialog(false);
       setSelectedParentIngredient(null);
     }
   };
 
-  const deleteSubIngredient = (id: string) => {
-    const updatedIngredients = list.ingredients.filter(ing => ing.id !== id);
+  const deleteSubIngredient = (subIngredientId: string) => {
     const updatedList = {
       ...list,
-      ingredients: updatedIngredients,
-      updatedAt: new Date().toISOString(),
+      ingredients: list.ingredients.filter(ingredient => ingredient.id !== subIngredientId),
+      updatedAt: new Date().toISOString()
     };
     onUpdateList(updatedList);
   };
 
-  const handleVoiceInput = (text: string, _language: string) => {
-    // For main ingredients, just use the text as the category name
-    if (text.trim()) {
-      // Check if ingredient with same name already exists
+  const handleVoiceInput = (result) => {
+    if (result.text && result.text.trim()) {
+      // Check for duplicate names
       const existingIngredient = list.ingredients.find(ing => 
-        ing.name.toLowerCase() === text.trim().toLowerCase() && !ing.isSubIngredient
+        ing.name.toLowerCase() === result.text.trim().toLowerCase() && !ing.isSubIngredient
       );
       
       if (existingIngredient) {
@@ -163,486 +167,546 @@ const IngredientList = ({ list, numberOfPeople, onUpdateList }: IngredientListPr
         setOpenVoiceModal(false);
         return;
       }
-      
+
       const ingredient: Ingredient = {
         id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        name: text.trim(),
-        quantity: 0, // Main ingredients are just categories
+        name: result.text.trim(),
+        quantity: 0,
         unit: '',
         baseQuantity: 0,
         baseUnit: '',
+        subIngredients: []
       };
+      
       const updatedList = {
         ...list,
         ingredients: [...list.ingredients, ingredient],
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       onUpdateList(updatedList);
       setOpenVoiceModal(false);
-      console.log('Added ingredient via voice:', ingredient.name, 'Total ingredients:', updatedList.ingredients.length);
     }
   };
 
-  const handleSubIngredientVoiceInput = (text: string, _language: string) => {
-    // Simple parsing logic for sub-ingredients
-    const words = text.toLowerCase().split(' ');
-    let name = '';
-    let quantity = 1;
-    let unit = 'pieces';
-    for (let i = 0; i < words.length; i++) {
-      const word = words[i];
-      const num = parseFloat(word);
-      if (!isNaN(num)) {
-        quantity = num;
-        if (i + 1 < words.length && commonUnits.includes(words[i + 1])) {
-          unit = words[i + 1];
-          name = words.slice(0, i).join(' ');
-          break;
+  const handleSubIngredientVoiceInput = (result) => {
+    if (result.text && result.text.trim()) {
+      // Parse voice input for sub-ingredient (e.g., "2 kg potatoes", "500 grams tomatoes")
+      const text = result.text.trim().toLowerCase();
+      
+      // Try to extract quantity and unit from the beginning
+      const quantityMatch = text.match(/^(\d+(?:\.\d+)?)\s*(kg|g|grams?|kilos?|liters?|l|ml|pieces?|pcs?|tablespoons?|tbsp|teaspoons?|tsp|cups?|bunches?|heads?|cloves?)/i);
+      
+      if (quantityMatch) {
+        const quantity = quantityMatch[1];
+        const unit = quantityMatch[2];
+        const name = text.replace(quantityMatch[0], '').trim();
+        
+        if (name) {
+          setNewSubIngredient({
+            name: name,
+            quantity: quantity,
+            unit: unit
+          });
         } else {
-          name = words.slice(0, i).concat(words.slice(i + 1)).join(' ');
-          break;
+          // If no name found, use the whole text as name
+          setNewSubIngredient({
+            name: result.text.trim(),
+            quantity: '1',
+            unit: 'piece'
+          });
         }
-      }
-    }
-    if (!name) {
-      name = text;
-    }
-    
-    // Directly add the sub-ingredient without opening dialog
-    if (selectedParentIngredient && name.trim()) {
-      const subIngredient: Ingredient = {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        name: name.trim(),
-        quantity: quantity * numberOfPeople,
-        unit: unit,
-        baseQuantity: quantity,
-        baseUnit: unit,
-        parentId: selectedParentIngredient.id,
-        isSubIngredient: true,
-      };
-      
-      const updatedIngredients = [...list.ingredients, subIngredient];
-      const updatedList = {
-        ...list,
-        ingredients: updatedIngredients,
-        updatedAt: new Date().toISOString(),
-      };
-      onUpdateList(updatedList);
-      setOpenVoiceModal(false);
-      setSelectedParentIngredient(null);
-    }
-  };
-
-  const handleSubIngredientFieldVoiceInput = (text: string, _language: string) => {
-    console.log('=== SUB-INGREDIENT FIELD VOICE INPUT ===');
-    console.log('Voice input for field:', voiceInputField);
-    console.log('Voice text:', text);
-    
-    if (!voiceInputField) return;
-    
-    if (voiceInputField === 'name') {
-      setNewSubIngredient(prev => ({ ...prev, name: text.trim() }));
-    } else if (voiceInputField === 'quantity') {
-      const num = parseFloat(text);
-      if (!isNaN(num) && num > 0) {
-        setNewSubIngredient(prev => ({ ...prev, quantity: num }));
-        setQuantityInputValue(num.toString());
       } else {
-        alert('Please speak a valid number for quantity.');
+        // If no quantity/unit pattern found, use the whole text as name
+        setNewSubIngredient({
+          name: result.text.trim(),
+          quantity: '1',
+          unit: 'piece'
+        });
       }
-    }
-    
-    setOpenSubIngredientVoiceModal(false);
-    setVoiceInputField(null);
-  };
-
-  // Quantity input handlers
-  const handleQuantityFocus = () => {
-    setIsQuantityEditing(true);
-    setQuantityInputValue(''); // Clear the input when user starts typing
-  };
-
-  const handleQuantityChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
-    setQuantityInputValue(value);
-    
-    const numValue = parseFloat(value);
-    if (numValue > 0) {
-      setNewSubIngredient(prev => ({ ...prev, quantity: numValue }));
+      
+      setOpenSubIngredientVoiceModal(false);
     }
   };
 
-  const handleQuantityBlur = () => {
-    setIsQuantityEditing(false);
-    const numValue = parseFloat(quantityInputValue);
-    if (isNaN(numValue) || numValue <= 0) {
-      setQuantityInputValue(newSubIngredient.quantity.toString());
-    }
-  };
-
-  // PDF Export function using HTML to Canvas for proper Unicode support
   const exportPDF = async () => {
-    try {
-      // Create a temporary div for PDF content
-      const tempDiv = document.createElement('div');
-      tempDiv.style.position = 'absolute';
-      tempDiv.style.left = '-9999px';
-      tempDiv.style.top = '0';
-      tempDiv.style.width = '800px';
-      tempDiv.style.padding = '20px';
-      tempDiv.style.fontFamily = 'Arial, sans-serif';
-      tempDiv.style.backgroundColor = 'white';
-      tempDiv.style.color = 'black';
+    // Create a temporary div for clean PDF content
+    const tempDiv = document.createElement('div');
+    tempDiv.style.position = 'absolute';
+    tempDiv.style.left = '-9999px';
+    tempDiv.style.top = '0';
+    tempDiv.style.width = '800px';
+    tempDiv.style.padding = '20px';
+    tempDiv.style.fontFamily = 'Arial, sans-serif';
+    tempDiv.style.backgroundColor = 'white';
+    tempDiv.style.color = 'black';
+    tempDiv.style.fontSize = '19px';
+    tempDiv.style.lineHeight = '1.6';
+    
+    // Create clean HTML content for PDF
+    let pdfContent = `
+      <div style="margin-bottom: 30px;">
+        <h1 style="color: #1976d2; margin: 0 0 10px 0; font-size: 28px; border-bottom: 2px solid #1976d2; padding-bottom: 10px;">
+          ${list.name}
+        </h1>
+        <p style="margin: 0; color: #666; font-size: 16px;">
+          Generated on: ${new Date().toLocaleDateString()}
+        </p>
+      </div>
+    `;
+
+    if (mainIngredients.length > 0) {
+      pdfContent += '<div style="margin-top: 20px;">';
       
-      // Create the content HTML
-      tempDiv.innerHTML = `
-        <div style="margin-bottom: 20px;">
-          <h1 style="color: #1976d2; margin: 0 0 10px 0; font-size: 24px;">${list.name}</h1>
-          <p style="margin: 0; color: #666; font-size: 14px;">Generated on: ${new Date().toLocaleDateString()}</p>
+      mainIngredients.forEach((ingredient, ingredientIndex, ingredientArray) => {
+        const subIngredients = getSubIngredients(ingredient.id);
+        
+        if (subIngredients.length > 0) {
+          const isLastCategory = ingredientIndex === ingredientArray.length - 1;
+          // Add category heading
+          pdfContent += `
+            <div style="margin-bottom: ${isLastCategory ? '0px' : '20px'}; page-break-inside: avoid; break-inside: avoid; page-break-before: auto;">
+              <h2 style="color: #1976d2; margin: 0 0 15px 0; font-size: 22px; border-bottom: 1px solid #ddd; padding-bottom: 5px; page-break-after: avoid;">
+                ${ingredient.name}
+              </h2>
+              <div style="margin-left: 20px; page-break-inside: avoid;">
+          `;
+          
+          // Add sub-ingredients
+          subIngredients.forEach((subIngredient, index, array) => {
+            const scaledQuantity = subIngredient.baseQuantity * numberOfPeople;
+            const isLastItem = index === array.length - 1;
+            pdfContent += `
+              <div style="margin-bottom: ${isLastItem ? '0px' : '15px'}; padding: 12px; background-color: #f9f9f9; border-radius: 4px; page-break-inside: avoid; break-inside: avoid; page-break-before: auto; orphans: 2; widows: 2; min-height: 60px;">
+                <div style="font-weight: bold; font-size: 18px; color: #333; margin-bottom: 6px; page-break-after: avoid;">
+                  • ${subIngredient.name}
+                </div>
+                <div style="color: #666; font-size: 16px; page-break-before: avoid;">
+                  ${scaledQuantity} ${subIngredient.baseUnit}
+                </div>
+              </div>
+            `;
+          });
+          
+          pdfContent += '</div></div>';
+        }
+      });
+      
+      pdfContent += '</div>';
+    } else {
+      pdfContent += `
+        <div style="text-align: center; padding: 40px; color: #666; font-size: 18px; font-style: italic;">
+          No ingredients in this list.
         </div>
-        ${list.ingredients.length > 0 ? `
-          <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
-            <thead>
-              <tr style="background-color: #1976d2; color: white;">
-                <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Ingredient</th>
-                <th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Quantity</th>
-                <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Unit</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${list.ingredients
-                .filter(ing => !ing.isSubIngredient)
-                .map((ing, index) => {
-                  const subIngredients = list.ingredients.filter(sub => sub.parentId === ing.id);
-                  
-                  let rows = '';
-                  
-                  // Only show categories that have sub-ingredients
-                  if (subIngredients.length > 0) {
-                    rows += `
-                      <tr style="background-color: ${index % 2 === 0 ? '#f9f9f9' : 'white'};">
-                        <td style="padding: 12px; border: 1px solid #ddd; font-size: 14px; font-weight: bold; color: #1976d2;">${ing.name}</td>
-                        <td style="padding: 12px; border: 1px solid #ddd; text-align: center; font-size: 14px;">-</td>
-                        <td style="padding: 12px; border: 1px solid #ddd; font-size: 14px;">-</td>
-                      </tr>
-                    `;
-                    
-                    // Add sub-ingredients
-                    subIngredients.forEach((subIng) => {
-                      const subScaledQuantity = subIng.baseQuantity * numberOfPeople;
-                      rows += `
-                        <tr style="background-color: ${index % 2 === 0 ? '#f9f9f9' : 'white'};">
-                          <td style="padding: 12px 12px 12px 32px; border: 1px solid #ddd; font-size: 14px;">• ${subIng.name}</td>
-                          <td style="padding: 12px; border: 1px solid #ddd; text-align: center; font-size: 14px;">${subScaledQuantity}</td>
-                          <td style="padding: 12px; border: 1px solid #ddd; font-size: 14px;">${subIng.baseUnit}</td>
-                        </tr>
-                      `;
-                    });
-                  }
-                  
-                  return rows;
-                }).join('')}
-            </tbody>
-          </table>
-        ` : `
-          <div style="text-align: center; padding: 40px; color: #666; font-size: 16px;">
-            No ingredients in this list.
-          </div>
-        `}
       `;
-      
-      document.body.appendChild(tempDiv);
-      
-      // Convert to canvas
+    }
+
+    tempDiv.innerHTML = pdfContent;
+    document.body.appendChild(tempDiv);
+
+    try {
       const canvas = await html2canvas(tempDiv, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        width: 800,
+        height: tempDiv.scrollHeight
       });
-      
+
       // Remove temporary div
       document.body.removeChild(tempDiv);
-      
-      // Create PDF
+
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
       const imgWidth = 210;
       const pageHeight = 295;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       let heightLeft = imgHeight;
+
       let position = 0;
-      
+
       pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
       heightLeft -= pageHeight;
-      
+
       while (heightLeft >= 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
         pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
       }
-      
-      pdf.save(`${list.name}.pdf`);
+
+      pdf.save(`${list.name}-ingredients.pdf`);
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Error generating PDF. Please try again.');
+      // Clean up temp div if error occurs
+      if (document.body.contains(tempDiv)) {
+        document.body.removeChild(tempDiv);
+      }
     }
   };
 
   return (
-    <Card>
-      <CardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6">Ingredients</Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenAddDialog(true)} size="small">Add Ingredient</Button>
-            <Button variant="outlined" startIcon={<MicIcon />} onClick={() => setOpenVoiceModal(true)} size="small">Voice Input</Button>
-            <Button variant="outlined" startIcon={<DownloadIcon />} size="small" onClick={exportPDF}>Export PDF</Button>
-          </Box>
-        </Box>
-        {list.ingredients.length === 0 ? (
-          <Box color="text.secondary" textAlign="center">
-            No ingredients yet. Add your first ingredient!
+    <Box sx={{ width: '100%' }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: isMobile ? 'column' : 'row',
+        gap: isMobile ? 1 : 2,
+        alignItems: isMobile ? 'stretch' : 'center',
+        mb: 2
+      }}>
+        <Typography 
+          variant={isMobile ? "h6" : "h5"} 
+          component="h2"
+          sx={{ 
+            fontSize: isMobile ? '1.1rem' : '1.5rem',
+            fontWeight: 'bold',
+            color: 'primary.main',
+            flex: 1
+          }}
+        >
+          {list.name} - Ingredients
+        </Typography>
+        
+        <Button
+          variant="outlined"
+          startIcon={<DownloadIcon />}
+          onClick={exportPDF}
+          sx={{
+            minWidth: isMobile ? '100%' : 'auto',
+            fontSize: isMobile ? '0.875rem' : '1rem',
+            py: isMobile ? 1.5 : 1
+          }}
+        >
+          Export PDF
+        </Button>
+      </Box>
+
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: isMobile ? 'column' : 'row',
+        gap: isMobile ? 1 : 2,
+        alignItems: isMobile ? 'stretch' : 'center',
+        mb: 2
+      }}>
+        <TextField
+          label="Category Name"
+          value={newIngredient.name}
+          onChange={(e) => setNewIngredient({ ...newIngredient, name: e.target.value })}
+          onKeyPress={(e) => e.key === 'Enter' && addIngredient()}
+          fullWidth
+          size={isMobile ? "small" : "medium"}
+          sx={{
+            '& .MuiInputLabel-root': {
+              fontSize: isMobile ? '0.875rem' : '1rem'
+            },
+            '& .MuiOutlinedInput-root': {
+              fontSize: isMobile ? '1rem' : '1.125rem'
+            }
+          }}
+        />
+        
+        <Button
+          variant="outlined"
+          startIcon={<MicIcon />}
+          onClick={() => setOpenVoiceModal(true)}
+          sx={{
+            minWidth: isMobile ? '100%' : 'auto',
+            fontSize: isMobile ? '0.875rem' : '1rem',
+            py: isMobile ? 1.5 : 1
+          }}
+        >
+          ADD MAIN CATEGORY
+        </Button>
+      </Box>
+
+      <Box id="ingredient-list-content" sx={{ 
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: 2,
+        overflow: 'hidden'
+      }}>
+        {mainIngredients.length === 0 ? (
+          <Box sx={{ 
+            textAlign: 'center', 
+            py: 4,
+            px: 2
+          }}>
+            <Typography 
+              variant={isMobile ? "body2" : "body1"} 
+              color="text.secondary"
+              sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}
+            >
+              No categories added yet. Add your first category!
+            </Typography>
           </Box>
         ) : (
-          <List>
-            {list.ingredients
-              .filter(ingredient => !ingredient.isSubIngredient) // Only show main ingredients
-              .map((ingredient) => {
-                const subIngredients = list.ingredients.filter(sub => sub.parentId === ingredient.id);
-                const isExpanded = expandedItems.has(ingredient.id);
-                
-                return (
-                  <Box key={ingredient.id}>
-                    <ListItem sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, mb: 1 }}>
-                      <ListItemButton onClick={() => toggleExpanded(ingredient.id)} sx={{ p: 0 }}>
-                        <ListItemText 
-                          primary={ingredient.name} 
-                          secondary={`${subIngredients.length} sub-ingredients`} 
-                        />
-                        {subIngredients.length > 0 && (
-                          <IconButton size="small">
-                            {isExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                          </IconButton>
-                        )}
-                      </ListItemButton>
-                      <ListItemSecondaryAction>
-                        <IconButton 
-                          edge="end" 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedParentIngredient(ingredient);
-                            setOpenSubIngredientDialog(true);
-                          }} 
-                          size="small"
-                          title="Add Sub-ingredient"
-                        >
-                          <AddIcon />
-                        </IconButton>
-                        <IconButton 
-                          edge="end" 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedParentIngredient(ingredient);
-                            setOpenVoiceModal(true);
-                          }} 
-                          size="small"
-                          title="Voice Input for Sub-ingredient"
-                        >
-                          <MicIcon />
-                        </IconButton>
-                        <IconButton edge="end" onClick={() => setEditingIngredient(ingredient)} size="small"><EditIcon /></IconButton>
-                        <IconButton edge="end" onClick={() => deleteIngredient(ingredient.id)} size="small"><DeleteIcon /></IconButton>
-                      </ListItemSecondaryAction>
-                    </ListItem>
-                    
-                    {/* Sub-ingredients */}
-                    <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                      <List sx={{ pl: 4 }}>
-                        {subIngredients.map((subIngredient) => {
-                          const subScaledQuantity = subIngredient.baseQuantity * numberOfPeople;
-                          return (
-                            <ListItem key={subIngredient.id} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, mb: 1, backgroundColor: 'grey.50' }}>
-                              <ListItemText 
-                                primary={`• ${subIngredient.name}`} 
-                                secondary={`${subScaledQuantity} ${subIngredient.baseUnit}`} 
+          <List dense={isMobile}>
+            {mainIngredients.map((ingredient) => {
+              const subIngredients = getSubIngredients(ingredient.id);
+              return (
+                <Box key={ingredient.id}>
+                  <ListItem sx={{ 
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                    '&:last-child': { borderBottom: 'none' }
+                  }}>
+                    <ListItemText
+                      primary={
+                        <Box sx={{ 
+                          display: 'flex', 
+                          alignItems: 'center',
+                          gap: 1
+                        }}>
+                          <Typography 
+                            variant={isMobile ? "body2" : "body1"}
+                            sx={{ 
+                              fontWeight: 'bold',
+                              fontSize: isMobile ? '0.875rem' : '1rem'
+                            }}
+                          >
+                            {editingId === ingredient.id ? (
+                              <TextField
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onKeyPress={(e) => {
+                                  if (e.key === 'Enter') {
+                                    updateIngredient(ingredient.id, 'name', editValue);
+                                    setEditingId(null);
+                                  }
+                                }}
+                                size="small"
+                                autoFocus
                               />
-                              <ListItemSecondaryAction>
-                                <IconButton edge="end" onClick={() => setEditingIngredient(subIngredient)} size="small"><EditIcon /></IconButton>
-                                <IconButton edge="end" onClick={() => deleteSubIngredient(subIngredient.id)} size="small"><DeleteIcon /></IconButton>
-                              </ListItemSecondaryAction>
-                            </ListItem>
-                          );
-                        })}
-                      </List>
-                    </Collapse>
-                  </Box>
-                );
-              })}
+                            ) : (
+                              ingredient.name
+                            )}
+                          </Typography>
+                          <Chip 
+                            label={`${subIngredients.length} sub-ingredients`} 
+                            size={isMobile ? "small" : "medium"}
+                            variant="outlined"
+                            color="primary"
+                            sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
+                          />
+                        </Box>
+                      }
+                    />
+                    <ListItemSecondaryAction sx={{ 
+                      display: 'flex', 
+                      gap: isMobile ? 0.5 : 1,
+                      flexDirection: isMobile ? 'column' : 'row'
+                    }}>
+                      <IconButton
+                        onClick={() => toggleExpanded(ingredient.id)}
+                        size={isMobile ? "small" : "medium"}
+                      >
+                        {expandedItems.has(ingredient.id) ? 
+                          <ExpandLessIcon fontSize={isMobile ? "small" : "medium"} /> : 
+                          <ExpandMoreIcon fontSize={isMobile ? "small" : "medium"} />
+                        }
+                      </IconButton>
+                      
+                      <IconButton
+                        onClick={() => {
+                          setSelectedParentIngredient(ingredient);
+                          setOpenSubIngredientDialog(true);
+                        }}
+                        size={isMobile ? "small" : "medium"}
+                        sx={{ color: 'success.main' }}
+                      >
+                        <AddIcon fontSize={isMobile ? "small" : "medium"} />
+                      </IconButton>
+                      
+                      <IconButton
+                        onClick={() => {
+                          setEditingId(ingredient.id);
+                          setEditValue(ingredient.name);
+                        }}
+                        size={isMobile ? "small" : "medium"}
+                        sx={{ color: 'primary.main' }}
+                      >
+                        <EditIcon fontSize={isMobile ? "small" : "medium"} />
+                      </IconButton>
+                      
+                      <IconButton
+                        onClick={() => deleteIngredient(ingredient.id)}
+                        size={isMobile ? "small" : "medium"}
+                        sx={{ color: 'error.main' }}
+                      >
+                        <DeleteIcon fontSize={isMobile ? "small" : "medium"} />
+                      </IconButton>
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                  
+                  <Collapse in={expandedItems.has(ingredient.id)}>
+                    <Box sx={{ 
+                      backgroundColor: 'grey.50',
+                      pl: isMobile ? 2 : 4
+                    }}>
+                      {subIngredients.map((subIngredient) => (
+                        <ListItem key={subIngredient.id} sx={{ 
+                          borderBottom: '1px solid',
+                          borderColor: 'divider',
+                          '&:last-child': { borderBottom: 'none' }
+                        }}>
+                          <ListItemText
+                            primary={
+                              <Typography 
+                                variant={isMobile ? "body2" : "body1"}
+                                sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}
+                              >
+                                • {subIngredient.name}
+                              </Typography>
+                            }
+                            secondary={
+                              <Typography 
+                                variant={isMobile ? "caption" : "body2"}
+                                color="text.secondary"
+                                sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
+                              >
+                                {subIngredient.baseQuantity * numberOfPeople} {subIngredient.baseUnit}
+                              </Typography>
+                            }
+                          />
+                          <ListItemSecondaryAction>
+                            <IconButton
+                              onClick={() => deleteSubIngredient(subIngredient.id)}
+                              size={isMobile ? "small" : "medium"}
+                              sx={{ color: 'error.main' }}
+                            >
+                              <DeleteIcon fontSize={isMobile ? "small" : "medium"} />
+                            </IconButton>
+                          </ListItemSecondaryAction>
+                        </ListItem>
+                      ))}
+                      
+                      {subIngredients.length === 0 && (
+                        <Box sx={{ 
+                          textAlign: 'center', 
+                          py: 2,
+                          px: 2
+                        }}>
+                          <Typography 
+                            variant={isMobile ? "caption" : "body2"} 
+                            color="text.secondary"
+                            sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
+                          >
+                            No sub-ingredients yet. Click the + button to add some!
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  </Collapse>
+                </Box>
+              );
+            })}
           </List>
         )}
-        {/* Add Ingredient Dialog */}
-        <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)}>
-          <DialogTitle>Add Category</DialogTitle>
-          <DialogContent>
-            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-              <TextField 
-                autoFocus 
-                margin="dense" 
-                label="Category Name" 
-                fullWidth 
-                variant="outlined" 
-                value={newIngredient.name} 
-                onChange={(e) => setNewIngredient({ ...newIngredient, name: e.target.value })} 
-                placeholder="e.g., Vegetables, Spices, Dairy"
+      </Box>
+
+      {/* Sub-ingredient Dialog */}
+      <Dialog 
+        open={openSubIngredientDialog} 
+        onClose={() => setOpenSubIngredientDialog(false)}
+        maxWidth={isMobile ? "xs" : "sm"}
+        fullWidth
+      >
+        <DialogTitle sx={{ fontSize: isMobile ? '1.1rem' : '1.25rem' }}>
+          Add Sub-ingredient to {selectedParentIngredient?.name}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column',
+            gap: 2,
+            mt: 1
+          }}>
+            <TextField
+              label="Name"
+              value={newSubIngredient.name}
+              onChange={(e) => setNewSubIngredient({ ...newSubIngredient, name: e.target.value })}
+              fullWidth
+              size={isMobile ? "small" : "medium"}
+            />
+            
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: isMobile ? 'column' : 'row',
+              gap: 2
+            }}>
+              <TextField
+                label="Quantity"
+                type="number"
+                value={newSubIngredient.quantity}
+                onChange={(e) => setNewSubIngredient({ ...newSubIngredient, quantity: e.target.value })}
+                fullWidth
+                size={isMobile ? "small" : "medium"}
               />
-              <Button 
-                variant="outlined" 
-                startIcon={<MicIcon />} 
-                onClick={() => {
-                  setOpenAddDialog(false);
-                  setOpenVoiceModal(true);
-                }}
-                sx={{ minWidth: 'auto', px: 2 }}
-                title="Use Voice Input"
-              >
-                Voice
-              </Button>
-            </Box>
-            <Typography variant="body2" color="textSecondary">
-              This will create a category where you can add sub-ingredients with quantities and units.
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenAddDialog(false)}>Cancel</Button>
-            <Button onClick={addIngredient} variant="contained">Add Category</Button>
-          </DialogActions>
-        </Dialog>
-        {/* Edit Ingredient Dialog */}
-        <Dialog open={!!editingIngredient} onClose={() => setEditingIngredient(null)}>
-          <DialogTitle>Edit Ingredient</DialogTitle>
-          <DialogContent>
-            <TextField autoFocus margin="dense" label="Ingredient Name" fullWidth variant="outlined" value={editingIngredient?.name || ''} onChange={(e) => setEditingIngredient(editingIngredient ? { ...editingIngredient, name: e.target.value } : null)} sx={{ mb: 2 }} />
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField label="Base Quantity (per person)" type="number" value={editingIngredient?.baseQuantity || 1} onChange={(e) => setEditingIngredient(editingIngredient ? { ...editingIngredient, baseQuantity: parseFloat(e.target.value) || 1 } : null)} inputProps={{ min: 0, step: 0.1 }} sx={{ width: '50%' }} />
-              <FormControl sx={{ width: '50%' }}>
-                <InputLabel>Unit</InputLabel>
-                <Select value={editingIngredient?.baseUnit || 'pieces'} label="Unit" onChange={(e) => setEditingIngredient(editingIngredient ? { ...editingIngredient, baseUnit: e.target.value } : null)}>
-                  {commonUnits.map((unit) => (<MenuItem key={unit} value={unit}>{unit}</MenuItem>))}
-                </Select>
-              </FormControl>
-            </Box>
-            <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-              Current total: {(editingIngredient?.baseQuantity || 1) * numberOfPeople} {editingIngredient?.baseUnit || 'pieces'}
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setEditingIngredient(null)}>Cancel</Button>
-            <Button onClick={updateIngredient} variant="contained">Update</Button>
-          </DialogActions>
-        </Dialog>
-        {/* Add Sub-Ingredient Dialog */}
-        <Dialog open={openSubIngredientDialog} onClose={() => setOpenSubIngredientDialog(false)}>
-          <DialogTitle>Add Sub-Ingredient to {selectedParentIngredient?.name}</DialogTitle>
-          <DialogContent>
-            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-              <TextField 
-                autoFocus 
-                margin="dense" 
-                label="Sub-Ingredient Name" 
-                fullWidth 
-                variant="outlined" 
-                value={newSubIngredient.name} 
-                onChange={(e) => setNewSubIngredient({ ...newSubIngredient, name: e.target.value })} 
-                placeholder="e.g., Onion, Tomato, Ginger"
+              <TextField
+                label="Unit"
+                value={newSubIngredient.unit}
+                onChange={(e) => setNewSubIngredient({ ...newSubIngredient, unit: e.target.value })}
+                fullWidth
+                size={isMobile ? "small" : "medium"}
               />
-              <Button 
-                variant="outlined" 
-                startIcon={<MicIcon />} 
+            </Box>
+            
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: isMobile ? 'column' : 'row',
+              gap: 1
+            }}>
+              <Button
+                variant="outlined"
+                startIcon={<MicIcon />}
                 onClick={() => {
-                  setVoiceInputField('name');
                   setOpenSubIngredientVoiceModal(true);
                 }}
-                sx={{ minWidth: 'auto', px: 2 }}
-                title="Use Voice Input for Name"
+                sx={{
+                  minWidth: isMobile ? '100%' : 'auto',
+                  fontSize: isMobile ? '0.875rem' : '1rem',
+                  py: isMobile ? 1.5 : 1
+                }}
               >
-                Voice
+                Voice Add
               </Button>
             </Box>
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <Box sx={{ display: 'flex', gap: 1, width: '50%' }}>
-                <TextField 
-                  label="Quantity" 
-                  type="number" 
-                  value={quantityInputValue} 
-                  onChange={handleQuantityChange}
-                  onFocus={handleQuantityFocus}
-                  onBlur={handleQuantityBlur}
-                  inputProps={{ min: 0, step: 0.1 }} 
-                  fullWidth
-                />
-                <Button 
-                  variant="outlined" 
-                  startIcon={<MicIcon />} 
-                  onClick={() => {
-                    setVoiceInputField('quantity');
-                    setOpenSubIngredientVoiceModal(true);
-                  }}
-                  sx={{ minWidth: 'auto', px: 2 }}
-                  title="Use Voice Input for Quantity"
-                >
-                  Voice
-                </Button>
-              </Box>
-              <FormControl sx={{ width: '50%' }}>
-                <InputLabel>Unit</InputLabel>
-                <Select 
-                  value={newSubIngredient.unit} 
-                  label="Unit" 
-                  onChange={(e) => setNewSubIngredient({ ...newSubIngredient, unit: e.target.value })}
-                >
-                  {commonUnits.map((unit) => (<MenuItem key={unit} value={unit}>{unit}</MenuItem>))}
-                </Select>
-              </FormControl>
-            </Box>
-            <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
-              You can use voice input for the ingredient name and quantity. Speak clearly in Gujarati, Hindi, or English.
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenSubIngredientDialog(false)}>Cancel</Button>
-            <Button 
-              variant="outlined" 
-              startIcon={<MicIcon />} 
-              onClick={() => {
-                setOpenSubIngredientDialog(false);
-                setOpenVoiceModal(true);
-              }}
-            >
-              Voice Add
-            </Button>
-            <Button onClick={addSubIngredient} variant="contained">Add Sub-Ingredient</Button>
-          </DialogActions>
-        </Dialog>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: isMobile ? 2 : 3, pb: isMobile ? 2 : 3 }}>
+          <Button 
+            onClick={() => setOpenSubIngredientDialog(false)}
+            size={isMobile ? "small" : "medium"}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={addSubIngredient} 
+            variant="contained"
+            disabled={!newSubIngredient.name.trim()}
+            size={isMobile ? "small" : "medium"}
+          >
+            Add Sub-ingredient
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-        {/* Voice Input Modal */}
-        <VoiceInputModal 
-          open={openVoiceModal} 
-          onClose={() => setOpenVoiceModal(false)} 
-          onVoiceInput={selectedParentIngredient ? handleSubIngredientVoiceInput : handleVoiceInput}
-          context={selectedParentIngredient ? 'sub-ingredient' : 'category'}
-        />
+      {/* Voice Input Modal for Categories */}
+      <VoiceInputModal
+        open={openVoiceModal}
+        onClose={() => setOpenVoiceModal(false)}
+        onResult={handleVoiceInput}
+        context="category"
+      />
 
-        {/* Sub-Ingredient Voice Input Modal */}
-        <VoiceInputModal 
-          open={openSubIngredientVoiceModal} 
-          onClose={() => setOpenSubIngredientVoiceModal(false)} 
-          onVoiceInput={handleSubIngredientFieldVoiceInput}
-          context="sub-ingredient"
-        />
-      </CardContent>
-    </Card>
+      {/* Voice Input Modal for Sub-ingredients */}
+      <VoiceInputModal
+        open={openSubIngredientVoiceModal}
+        onClose={() => setOpenSubIngredientVoiceModal(false)}
+        onResult={handleSubIngredientVoiceInput}
+        context="sub-ingredient"
+      />
+    </Box>
   );
 };
 

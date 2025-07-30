@@ -1,310 +1,353 @@
 import { useState, useEffect } from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box, FormControl, InputLabel, Select, MenuItem, Chip, Alert, TextField
+  Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, Box,
+  useMediaQuery, useTheme, Alert, TextField
 } from '@mui/material';
-import { Mic as MicIcon, MicOff as MicOffIcon, VolumeUp as VolumeUpIcon } from '@mui/icons-material';
+import { Mic as MicIcon, MicOff as MicOffIcon } from '@mui/icons-material';
 
 interface VoiceInputModalProps {
   open: boolean;
   onClose: () => void;
-  onVoiceInput: (text: string, language: string) => void;
-  context?: 'list' | 'category' | 'sub-ingredient';
+  onResult: (result: { text: string; language: string }) => void;
+  context: 'list' | 'category' | 'sub-ingredient';
 }
 
-const VoiceInputModal = ({ open, onClose, onVoiceInput, context = 'sub-ingredient' }: VoiceInputModalProps) => {
+const VoiceInputModal = ({ open, onClose, onResult, context }: VoiceInputModalProps) => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [language, setLanguage] = useState('en-US');
-  const [recognition, setRecognition] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [manualText, setManualText] = useState('');
+  const [recognition, setRecognition] = useState<any>(null);
 
-  const languages = [
-    { code: 'en-US', name: 'English' },
-    { code: 'hi-IN', name: 'Hindi' },
-    { code: 'gu-IN', name: 'Gujarati' },
-  ];
-
-  // Check microphone permissions
-  const checkMicrophonePermission = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop());
-      setHasPermission(true);
-      console.log('VoiceInputModal: Microphone permission granted');
-    } catch (error) {
-      console.error('VoiceInputModal: Microphone permission denied:', error);
-      setHasPermission(false);
-      setError('Microphone access denied. Please allow microphone access in your browser settings.');
-    }
-  };
-
-  // Check permissions when modal opens
-  useEffect(() => {
-    if (open) {
-      checkMicrophonePermission();
-    }
-  }, [open]);
-
-  // Function to clean and normalize text, especially for Gujarati
-  const cleanText = (text: string, lang: string): string => {
-    let cleaned = text.trim();
-    
-    // For Gujarati, handle common encoding issues
-    if (lang === 'gu-IN') {
-      // Remove any mathematical symbols or encoding artifacts
-      cleaned = cleaned.replace(/[¬Ÿ¾•]/g, '');
-      // Normalize Unicode characters
-      cleaned = cleaned.normalize('NFC');
-      // Remove any remaining non-Gujarati characters that might be encoding artifacts
-      cleaned = cleaned.replace(/[^\u0A80-\u0AFF\u0020-\u007F]/g, (match) => {
-        // Keep Gujarati characters and basic ASCII
-        if (/[\u0A80-\u0AFF]/.test(match)) return match;
-        if (/[\u0020-\u007F]/.test(match)) return match;
-        return '';
-      });
-    }
-    
-    return cleaned;
-  };
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
 
   useEffect(() => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      setError('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
-      return;
-    }
-    
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const recognitionInstance = new SpeechRecognition();
-    
-    // Configure recognition settings
-    recognitionInstance.continuous = false; // Changed to false to avoid continuous listening issues
-    recognitionInstance.interimResults = true;
-    recognitionInstance.maxAlternatives = 1;
-    recognitionInstance.lang = language;
-    
-    // Set timeout to prevent hanging
-    recognitionInstance.timeout = 10000; // 10 seconds timeout
-    
-    recognitionInstance.onstart = () => { 
-      console.log('VoiceInputModal: Speech recognition started');
-      setIsListening(true); 
-      setError(null); 
-    };
-    
-    recognitionInstance.onresult = (event: any) => {
-      console.log('VoiceInputModal: Speech recognition result received');
-      let finalTranscript = '';
-      let interimTranscript = '';
+    if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition;
+      const recognitionInstance = new SpeechRecognition();
       
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript;
-        } else {
-          interimTranscript += transcript;
+      recognitionInstance.continuous = false;
+      recognitionInstance.interimResults = false;
+      recognitionInstance.lang = 'en-US'; // Default language
+      
+      recognitionInstance.onstart = () => {
+        setIsListening(true);
+        setError(null);
+        setTranscript('');
+      };
+      
+      recognitionInstance.onresult = (event: any) => {
+        const result = event.results[0][0].transcript;
+        const cleanedText = cleanText(result);
+        setTranscript(cleanedText);
+      };
+      
+      recognitionInstance.onerror = (event: any) => {
+        setIsListening(false);
+        let errorMessage = 'Speech recognition error occurred.';
+        
+        switch (event.error) {
+          case 'no-speech':
+            errorMessage = 'No speech was detected. Please try again.';
+            break;
+          case 'audio-capture':
+            errorMessage = 'No microphone was found. Please check your microphone.';
+            break;
+          case 'not-allowed':
+            errorMessage = 'Microphone access was denied. Please allow microphone access.';
+            break;
+          case 'network':
+            errorMessage = 'Network error occurred. Please check your connection.';
+            break;
+          default:
+            errorMessage = `Error: ${event.error}`;
         }
-      }
+        
+        setError(errorMessage);
+      };
       
-      if (finalTranscript) {
-        const cleanedText = cleanText(finalTranscript, language);
-        setTranscript(cleanedText);
-        console.log('VoiceInputModal: Final transcript received:', cleanedText);
-      } else if (interimTranscript) {
-        const cleanedText = cleanText(interimTranscript, language);
-        setTranscript(cleanedText);
-        console.log('VoiceInputModal: Interim transcript received:', cleanedText);
-      }
-    };
-    
-    recognitionInstance.onerror = (event: any) => {
-      console.error('VoiceInputModal: Speech recognition error:', event.error);
+      recognitionInstance.onend = () => {
+        setIsListening(false);
+      };
       
-      let errorMessage = '';
-      switch (event.error) {
-        case 'no-speech':
-          errorMessage = 'No speech detected. Please speak clearly and try again.';
-          break;
-        case 'audio-capture':
-          errorMessage = 'Microphone not found or access denied. Please check your microphone permissions.';
-          break;
-        case 'not-allowed':
-          errorMessage = 'Microphone access denied. Please allow microphone access and try again.';
-          break;
-        case 'network':
-          errorMessage = 'Network error. Please check your internet connection.';
-          break;
-        case 'service-not-allowed':
-          errorMessage = 'Speech recognition service not allowed. Please try again.';
-          break;
-        default:
-          errorMessage = `Speech recognition error: ${event.error}. Please try again.`;
-      }
-      
-      setError(errorMessage);
-      setIsListening(false);
-    };
-    
-    recognitionInstance.onend = () => { 
-      console.log('VoiceInputModal: Speech recognition ended');
-      setIsListening(false); 
-    };
-    
-    setRecognition(recognitionInstance);
-    
-    return () => { 
-      if (recognitionInstance) {
-        recognitionInstance.stop();
-      }
-    };
-  }, [language]);
+      setRecognition(recognitionInstance);
+    } else {
+      setError('Speech recognition is not supported in this browser.');
+    }
+  }, []);
 
-  const startListening = () => { 
-    if (!hasPermission) {
-      setError('Microphone permission required. Please allow microphone access and try again.');
-      checkMicrophonePermission();
-      return;
-    }
-    
-    if (recognition) { 
-      setTranscript('');
-      setError(null);
-      try {
-        recognition.start();
-        console.log('VoiceInputModal: Starting speech recognition');
-      } catch (error) {
-        console.error('VoiceInputModal: Error starting recognition:', error);
-        setError('Failed to start speech recognition. Please try again.');
-      }
-    } else {
-      setError('Speech recognition not initialized. Please refresh the page and try again.');
-    }
+  const cleanText = (text: string): string => {
+    // Remove common artifacts and normalize Unicode
+    return text
+      .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove zero-width characters
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
   };
-  
-  const stopListening = () => { 
+
+  const startListening = (language: string) => {
     if (recognition) {
-      try {
-        recognition.stop();
-        console.log('VoiceInputModal: Stopping speech recognition');
-      } catch (error) {
-        console.error('VoiceInputModal: Error stopping recognition:', error);
-      }
+      recognition.lang = language;
+      recognition.start();
     }
   };
-  const handleSubmit = () => { 
-    console.log('VoiceInputModal: Submit clicked, transcript:', transcript);
-    if (transcript.trim()) { 
-      const cleanedText = cleanText(transcript.trim(), language);
-      console.log('VoiceInputModal: Cleaned text:', cleanedText, 'Language:', language);
-      
-      // Call onVoiceInput and then close modal
-      onVoiceInput(cleanedText, language); 
-      setTranscript(''); 
-      onClose(); // Close the modal after submitting
-      console.log('VoiceInputModal: onVoiceInput called, transcript cleared, modal closed');
-    } else {
-      console.log('VoiceInputModal: Empty transcript, not submitting');
-      alert('Please speak something first before creating the list.');
+
+  const stopListening = () => {
+    if (recognition) {
+      recognition.stop();
     }
   };
-  const handleLanguageChange = (newLanguage: string) => { 
-    setLanguage(newLanguage); 
-    if (recognition) recognition.lang = newLanguage; 
+
+  const handleSubmit = () => {
+    const finalText = transcript || manualText;
+    if (finalText.trim()) {
+      onResult({ text: finalText.trim(), language: 'en-US' });
+      setTranscript('');
+      setManualText('');
+      onClose();
+    }
   };
+
+  const getContextInstructions = () => {
+    switch (context) {
+      case 'list':
+        return {
+          title: 'Create List by Voice',
+          instruction: 'Speak the name of your ingredient list (e.g., "Birthday Party", "Wedding Menu")',
+          placeholder: 'Enter list name manually...',
+          buttonText: 'CREATE LIST'
+        };
+      case 'category':
+        return {
+          title: 'Add Category by Voice',
+          instruction: 'Speak the category name (e.g., "Vegetables", "Spices", "Dairy")',
+          placeholder: 'Enter category name manually...',
+          buttonText: 'ADD CATEGORY'
+        };
+      case 'sub-ingredient':
+        return {
+          title: 'Add Sub-ingredient by Voice',
+          instruction: 'Speak the ingredient details (e.g., "2 kg potatoes", "500 grams tomatoes")',
+          placeholder: 'Enter ingredient details manually...',
+          buttonText: 'ADD INGREDIENT'
+        };
+      default:
+        return {
+          title: 'Voice Input',
+          instruction: 'Speak clearly into your microphone',
+          placeholder: 'Enter text manually...',
+          buttonText: 'SUBMIT'
+        };
+    }
+  };
+
+  const contextInfo = getContextInstructions();
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Voice Input</DialogTitle>
-      <DialogContent>
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-            {context === 'list' && 'Speak the name of your new list. For example: "Birthday Party for 50 people"'}
-            {context === 'category' && 'Speak the name of your category. For example: "Vegetables" or "Spices"'}
-            {context === 'sub-ingredient' && 'Speak your ingredient details. For example: "2 kilograms of rice" or "5 pieces of tomatoes"'}
-          </Typography>
-          <FormControl fullWidth sx={{ mb: 2 }}>
-            <InputLabel>Language</InputLabel>
-            <Select value={language} label="Language" onChange={(e) => handleLanguageChange(e.target.value)}>
-              {languages.map((lang) => (
-                <MenuItem key={lang.code} value={lang.code}>{lang.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-              <Box sx={{ mt: 1 }}>
-                <Button 
-                  size="small" 
-                  variant="outlined" 
-                  onClick={() => {
-                    setError(null);
-                    startListening();
-                  }}
-                >
-                  Try Again
-                </Button>
-              </Box>
-            </Alert>
-          )}
-          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+    <Dialog 
+      open={open} 
+      onClose={onClose}
+      maxWidth={isMobile ? "xs" : "sm"}
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: isMobile ? 2 : 3,
+          minHeight: isMobile ? 'auto' : '400px'
+        }
+      }}
+    >
+      <DialogTitle sx={{ 
+        fontSize: isMobile ? '1.1rem' : '1.25rem',
+        textAlign: 'center',
+        pb: 1
+      }}>
+        {contextInfo.title}
+      </DialogTitle>
+      
+      <DialogContent sx={{ 
+        px: isMobile ? 2 : 3,
+        py: isMobile ? 1 : 2
+      }}>
+        <Typography 
+          variant={isMobile ? "body2" : "body1"} 
+          color="text.secondary"
+          sx={{ 
+            mb: 2,
+            fontSize: isMobile ? '0.875rem' : '1rem',
+            textAlign: 'center'
+          }}
+        >
+          {contextInfo.instruction}
+        </Typography>
+
+        {error && (
+          <Alert 
+            severity="error" 
+            sx={{ 
+              mb: 2,
+              fontSize: isMobile ? '0.75rem' : '0.875rem'
+            }}
+          >
+            {error}
+          </Alert>
+        )}
+
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          gap: 2,
+          mb: 2
+        }}>
+          {/* Language Selection Buttons */}
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: isMobile ? 1 : 2,
+            justifyContent: 'center'
+          }}>
             <Button
-              variant={isListening ? 'contained' : 'outlined'}
-              color={isListening ? 'secondary' : 'primary'}
+              variant={isListening ? "contained" : "outlined"}
               startIcon={isListening ? <MicOffIcon /> : <MicIcon />}
-              onClick={isListening ? stopListening : startListening}
-              size="large"
-              disabled={!!error}
+              onClick={() => isListening ? stopListening() : startListening('en-US')}
+              disabled={!recognition}
+              sx={{
+                minWidth: isMobile ? '100%' : '120px',
+                fontSize: isMobile ? '0.75rem' : '0.875rem',
+                py: isMobile ? 1 : 1.5
+              }}
             >
-              {isListening ? 'Stop Listening' : 'Start Listening'}
+              English
+            </Button>
+            
+            <Button
+              variant={isListening ? "contained" : "outlined"}
+              startIcon={isListening ? <MicOffIcon /> : <MicIcon />}
+              onClick={() => isListening ? stopListening() : startListening('hi-IN')}
+              disabled={!recognition}
+              sx={{
+                minWidth: isMobile ? '100%' : '120px',
+                fontSize: isMobile ? '0.75rem' : '0.875rem',
+                py: isMobile ? 1 : 1.5
+              }}
+            >
+              हिंदी
+            </Button>
+            
+            <Button
+              variant={isListening ? "contained" : "outlined"}
+              startIcon={isListening ? <MicOffIcon /> : <MicIcon />}
+              onClick={() => isListening ? stopListening() : startListening('gu-IN')}
+              disabled={!recognition}
+              sx={{
+                minWidth: isMobile ? '100%' : '120px',
+                fontSize: isMobile ? '0.75rem' : '0.875rem',
+                py: isMobile ? 1 : 1.5
+              }}
+            >
+              ગુજરાતી
             </Button>
           </Box>
-          {isListening && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-              <Chip icon={<VolumeUpIcon />} label="Listening..." color="primary" variant="outlined" />
-            </Box>
-          )}
-          {!isListening && !transcript && !error && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              <Typography variant="body2">
-                <strong>Tips for better voice recognition:</strong>
-              </Typography>
-              <Typography variant="body2" sx={{ mt: 1 }}>
-                • Speak clearly and at a normal pace<br/>
-                • Ensure your microphone is working<br/>
-                • Try to minimize background noise<br/>
-                • Wait for the "Listening..." indicator before speaking
-              </Typography>
-            </Alert>
-          )}
+
+          {/* Transcript Display */}
           {transcript && (
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="subtitle2" gutterBottom>Recognized Text:</Typography>
-              <Box sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1, backgroundColor: 'grey.50', minHeight: 60 }}>
-                <Typography>{transcript}</Typography>
-              </Box>
+            <Box sx={{ 
+              p: 2, 
+              backgroundColor: 'success.light', 
+              borderRadius: 1,
+              border: '1px solid',
+              borderColor: 'success.main'
+            }}>
+              <Typography 
+                variant={isMobile ? "body2" : "body1"}
+                sx={{ 
+                  fontSize: isMobile ? '0.875rem' : '1rem',
+                  color: 'success.dark',
+                  fontWeight: 'medium'
+                }}
+              >
+                "{transcript}"
+              </Typography>
             </Box>
           )}
-          
-          {/* Manual text input fallback */}
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="subtitle2" gutterBottom>Or type manually:</Typography>
-            <TextField
-              fullWidth
-              variant="outlined"
-              placeholder="Type here if voice recognition doesn't work..."
-              value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              multiline
-              rows={2}
-            />
-          </Box>
+
+          {/* Manual Input Fallback */}
+          <TextField
+            label="Or type manually"
+            value={manualText}
+            onChange={(e) => setManualText(e.target.value)}
+            placeholder={contextInfo.placeholder}
+            multiline
+            rows={isMobile ? 2 : 3}
+            fullWidth
+            size={isMobile ? "small" : "medium"}
+            sx={{
+              '& .MuiInputLabel-root': {
+                fontSize: isMobile ? '0.875rem' : '1rem'
+              },
+              '& .MuiOutlinedInput-root': {
+                fontSize: isMobile ? '0.875rem' : '1rem'
+              }
+            }}
+          />
+        </Box>
+
+        {/* Instructions */}
+        <Box sx={{ 
+          backgroundColor: 'info.light', 
+          p: 2, 
+          borderRadius: 1,
+          border: '1px solid',
+          borderColor: 'info.main'
+        }}>
+          <Typography 
+            variant={isMobile ? "caption" : "body2"}
+            sx={{ 
+              fontSize: isMobile ? '0.75rem' : '0.875rem',
+              color: 'info.dark'
+            }}
+          >
+            <strong>Tips:</strong> Speak clearly and slowly. Make sure your microphone is working. 
+            If voice doesn't work, you can type manually above.
+          </Typography>
         </Box>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={handleSubmit} variant="contained" disabled={!transcript.trim()}>
-          {context === 'list' ? 'Create List' : context === 'category' ? 'Add Category' : 'Add to List'}
+
+      <DialogActions sx={{ 
+        px: isMobile ? 2 : 3, 
+        pb: isMobile ? 2 : 3,
+        gap: 1
+      }}>
+        <Button 
+          onClick={onClose}
+          size={isMobile ? "small" : "medium"}
+          sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}
+        >
+          Cancel
+        </Button>
+        
+        {error && (
+          <Button 
+            onClick={() => setError(null)}
+            variant="outlined"
+            size={isMobile ? "small" : "medium"}
+            sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}
+          >
+            Try Again
+          </Button>
+        )}
+        
+        <Button 
+          onClick={handleSubmit}
+          variant="contained"
+          disabled={!transcript.trim() && !manualText.trim()}
+          size={isMobile ? "small" : "medium"}
+          sx={{ 
+            fontSize: isMobile ? '0.875rem' : '1rem',
+            minWidth: isMobile ? 'auto' : '120px'
+          }}
+        >
+          {contextInfo.buttonText}
         </Button>
       </DialogActions>
     </Dialog>
