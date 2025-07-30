@@ -19,7 +19,13 @@ import type { IngredientListData, Ingredient } from '../types';
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
-const IngredientList = ({ list, numberOfPeople, onUpdateList }) => {
+interface IngredientListProps {
+  list: IngredientListData;
+  numberOfPeople: number;
+  onUpdateList: (list: IngredientListData) => void;
+}
+
+const IngredientList = ({ list, numberOfPeople, onUpdateList }: IngredientListProps) => {
   const [newIngredient, setNewIngredient] = useState({ name: '', quantity: '', unit: '' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -155,7 +161,7 @@ const IngredientList = ({ list, numberOfPeople, onUpdateList }) => {
     onUpdateList(updatedList);
   };
 
-  const handleVoiceInput = (result) => {
+  const handleVoiceInput = (result: { text: string }) => {
     if (result.text && result.text.trim()) {
       // Check for duplicate names
       const existingIngredient = list.ingredients.find(ing => 
@@ -188,7 +194,7 @@ const IngredientList = ({ list, numberOfPeople, onUpdateList }) => {
     }
   };
 
-  const handleSubIngredientVoiceInput = (result) => {
+  const handleSubIngredientVoiceInput = (result: { text: string }) => {
     if (result.text && result.text.trim()) {
       // Parse voice input for sub-ingredient (e.g., "2 kg potatoes", "500 grams tomatoes")
       const text = result.text.trim().toLowerCase();
