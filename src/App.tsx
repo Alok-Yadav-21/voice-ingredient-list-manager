@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   Container, Box, Typography, CssBaseline, ThemeProvider, createTheme, AppBar, Toolbar,
-  Snackbar, Alert
+  Snackbar, Alert, useMediaQuery
 } from '@mui/material';
 import ListSelector from './components/ListSelector';
 import IngredientList from './components/IngredientList';
@@ -12,6 +12,15 @@ const theme = createTheme({
   palette: {
     primary: { main: '#1976d2' },
     secondary: { main: '#dc004e' },
+  },
+  breakpoints: {
+    values: {
+      xs: 0,
+      sm: 600,
+      md: 960,
+      lg: 1280,
+      xl: 1920,
+    },
   },
 });
 
@@ -24,6 +33,8 @@ function App() {
     message: '',
     severity: 'success'
   });
+
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // Load lists from localStorage on app start
   useEffect(() => {
@@ -160,18 +171,49 @@ function App() {
     }
   };
 
+  const handleDownloadPDF = (list: IngredientListData) => {
+    // Set the current list to the one being downloaded
+    setCurrentListId(list.id);
+    setNumberOfPeople(list.numberOfPeople || 1);
+    
+    // Trigger PDF export after a short delay to ensure state is updated
+    setTimeout(() => {
+      const event = new CustomEvent('exportPDF', { detail: { listId: list.id } });
+      window.dispatchEvent(event);
+    }, 100);
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AppBar position="static">
         <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+          <Typography 
+            variant={isMobile ? "h6" : "h5"} 
+            component="div" 
+            sx={{ 
+              flexGrow: 1,
+              fontSize: isMobile ? '1rem' : '1.5rem',
+              textAlign: isMobile ? 'center' : 'left'
+            }}
+          >
             Voice Ingredient List Manager
           </Typography>
         </Toolbar>
       </AppBar>
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <Container 
+        maxWidth={isMobile ? false : "lg"} 
+        sx={{ 
+          mt: isMobile ? 2 : 4, 
+          mb: isMobile ? 2 : 4,
+          px: isMobile ? 2 : 3
+        }}
+      >
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: isMobile ? 2 : 3 
+        }}>
           <ListSelector
             lists={lists}
             currentListId={currentListId}
@@ -180,6 +222,7 @@ function App() {
             onDeleteList={deleteList}
             onClearAllLists={clearAllLists}
             onResetApp={resetApp}
+            onDownloadPDF={handleDownloadPDF}
           />
           {currentList && (
             <>
@@ -200,9 +243,19 @@ function App() {
         open={snackbar.open}
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        anchorOrigin={{ 
+          vertical: isMobile ? 'top' : 'bottom', 
+          horizontal: isMobile ? 'center' : 'left' 
+        }}
       >
-        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ width: '100%' }}>
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity} 
+          sx={{ 
+            width: '100%',
+            fontSize: isMobile ? '0.875rem' : '1rem'
+          }}
+        >
           {snackbar.message}
         </Alert>
       </Snackbar>

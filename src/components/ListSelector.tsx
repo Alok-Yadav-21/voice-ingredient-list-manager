@@ -1,368 +1,435 @@
 import { useState } from 'react';
 import {
-  Card, CardContent, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, List, ListItem, ListItemText, ListItemSecondaryAction, IconButton, Box, Chip, ListItemButton,
-  Alert,
+  Box, Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions,
+  TextField, List, ListItemButton, ListItemText, ListItemSecondaryAction,
+  IconButton, useMediaQuery, useTheme, Chip, Divider
 } from '@mui/material';
-import { Delete as DeleteIcon, GetApp as DownloadIcon, Mic as MicIcon } from '@mui/icons-material';
+import { Delete as DeleteIcon, Add as AddIcon, Mic as MicIcon, GetApp as DownloadIcon } from "@mui/icons-material";
+import VoiceInputModal from "./VoiceInputModal";
 import type { IngredientListData } from '../types';
-import VoiceInputModal from './VoiceInputModal';
 
-
-interface ListSelectorProps {
-  lists: IngredientListData[];
-  currentListId: string | null;
-  onListSelect: (listId: string) => void;
-  onCreateList: (name: string) => void;
-  onDeleteList: (listId: string) => void;
-  onClearAllLists: () => void;
-  onResetApp: () => void;
-  onDownloadPDF?: (list: IngredientListData) => void;
-}
-
-const ListSelector = ({
-  lists, currentListId, onListSelect, onCreateList, onDeleteList, onClearAllLists, onResetApp, onDownloadPDF,
-}: ListSelectorProps) => {
+const ListSelector = ({ 
+  lists, 
+  currentListId, 
+  onListSelect, 
+  onCreateList, 
+  onDeleteList, 
+  onClearAllLists, 
+  onResetApp,
+  onDownloadPDF
+}) => {
   const [openDialog, setOpenDialog] = useState(false);
   const [newListName, setNewListName] = useState('');
-  const [openVoiceModal, setOpenVoiceModal] = useState(false);
-
-  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; listId: string | null; listName: string }>({
-    open: false,
-    listId: null,
-    listName: ''
-  });
-
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; listId: string | null }>({ open: false, listId: null });
   const [clearAllDialog, setClearAllDialog] = useState(false);
-  const [resetAppDialog, setResetAppDialog] = useState(false);
+  const [resetDialog, setResetDialog] = useState(false);
+  const [openVoiceModal, setOpenVoiceModal] = useState(false);
+  const [openVoiceCreateModal, setOpenVoiceCreateModal] = useState(false);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
 
   const handleCreateList = () => {
-    console.log('=== LIST SELECTOR CREATE DEBUG ===');
-    console.log('New list name:', newListName);
-    console.log('New list name trimmed:', newListName.trim());
-    console.log('Is name valid:', newListName.trim() !== '');
-    
     if (newListName.trim()) {
-      console.log('=== CREATE LIST DEBUG ===');
-      console.log('Creating list with name:', newListName.trim());
-      
-      try {
-        console.log('About to call onCreateList with:', newListName.trim());
-        onCreateList(newListName.trim());
-        console.log('onCreateList called successfully');
-        setNewListName('');
-        setOpenDialog(false);
-        console.log('Dialog closed and name cleared');
-      } catch (error) {
-        console.error('Error creating list:', error);
-        alert('Error creating list. Please try again.');
-      }
-    } else {
-      console.log('Empty name, showing alert');
-      alert('Please enter a valid list name.');
+      onCreateList(newListName.trim());
+      setNewListName('');
+      setOpenDialog(false);
     }
   };
 
-  const handleVoiceInput = (text: string, _language: string) => {
-    console.log('=== VOICE INPUT DEBUG ===');
-    console.log('Voice input received:', text, 'Language:', _language);
-    console.log('Text length:', text.length);
-    console.log('Text trimmed:', text.trim());
-    console.log('Text trimmed length:', text.trim().length);
-    
-    if (text.trim()) {
-      console.log('Creating new list with name:', text.trim());
-      try {
-        console.log('About to call onCreateList with:', text.trim());
-        onCreateList(text.trim());
-        console.log('onCreateList called successfully');
-        alert('List created successfully: ' + text.trim());
-      } catch (error) {
-        console.error('Error calling onCreateList:', error);
-        alert('Error creating list: ' + (error as Error).message);
-      }
-      setOpenVoiceModal(false);
-      console.log('Voice modal closed, list creation initiated');
-    } else {
-      console.log('Empty text received, not creating list');
-      alert('Please speak a list name first.');
-    }
-  };
-
-  const handleDeleteClick = (listId: string, listName: string) => {
-    setDeleteDialog({ open: true, listId, listName });
+  const handleDeleteClick = (listId: string) => {
+    setDeleteDialog({ open: true, listId });
   };
 
   const handleConfirmDelete = () => {
-    console.log('=== LIST SELECTOR DELETE DEBUG ===');
-    console.log('Delete dialog state:', deleteDialog);
-    console.log('List ID to delete:', deleteDialog.listId);
-    console.log('List name to delete:', deleteDialog.listName);
-    
     if (deleteDialog.listId) {
-      console.log('=== CONFIRM DELETE DEBUG ===');
-      console.log('Deleting list:', deleteDialog.listName, 'with ID:', deleteDialog.listId);
-      
-      try {
-        console.log('About to call onDeleteList with:', deleteDialog.listId);
-        onDeleteList(deleteDialog.listId);
-        console.log('onDeleteList called successfully');
-        setDeleteDialog({ open: false, listId: null, listName: '' });
-        console.log('Delete dialog closed');
-      } catch (error) {
-        console.error('Error deleting list:', error);
-        alert('Error deleting list. Please try again.');
-      }
-    } else {
-      console.log('No list ID to delete');
+      onDeleteList(deleteDialog.listId);
+      setDeleteDialog({ open: false, listId: null });
     }
   };
 
   const handleCancelDelete = () => {
-    setDeleteDialog({ open: false, listId: null, listName: '' });
+    setDeleteDialog({ open: false, listId: null });
   };
 
-  const handleClearAllLists = () => {
-    console.log('=== CLEAR ALL LISTS DEBUG ===');
-    console.log('Clearing all lists. Total lists to delete:', lists.length);
-    
-    try {
-      onClearAllLists();
-      console.log('Clear all lists operation completed successfully');
-      alert('All lists cleared successfully!');
-    } catch (error) {
-      console.error('Error clearing all lists:', error);
-      alert('Error clearing lists. Please try again.');
+  const handleVoiceInput = (result) => {
+    if (result.text && result.text.trim()) {
+      onCreateList(result.text.trim());
+      setOpenVoiceCreateModal(false);
     }
-    
-    setClearAllDialog(false);
   };
 
-  const handleResetApp = () => {
-    console.log('=== RESET APP DEBUG ===');
-    console.log('Resetting entire app');
-    
-    try {
-      onResetApp();
-      console.log('App reset completed successfully');
-      alert('App reset successfully! All data has been cleared.');
-    } catch (error) {
-      console.error('Error resetting app:', error);
-      alert('Error resetting app. Please try again.');
+  const downloadListPDF = (list) => {
+    if (onDownloadPDF) {
+      onDownloadPDF(list);
     }
-    
-    setResetAppDialog(false);
   };
-
-  const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString();
 
   return (
-    <Card>
-      <CardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6">Ingredient Lists</Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button 
-              variant="outlined" 
-              startIcon={<MicIcon />} 
-              onClick={() => setOpenVoiceModal(true)} 
-              size="small"
-            >
-              Voice Create
-            </Button>
-            <Button variant="contained" onClick={() => setOpenDialog(true)} size="small">
-              Create New List
-            </Button>
-            {lists.length > 0 && (
-              <Button 
-                variant="outlined" 
-                color="error"
-                onClick={() => setClearAllDialog(true)} 
-                size="small"
-              >
-                Clear All
-              </Button>
-            )}
-            <Button 
-              variant="outlined" 
+    <Box sx={{ width: '100%' }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: isMobile ? 'column' : 'row',
+        gap: isMobile ? 1 : 2,
+        alignItems: isMobile ? 'stretch' : 'center',
+        mb: 2
+      }}>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => setOpenDialog(true)}
+          sx={{
+            minWidth: isMobile ? '100%' : 'auto',
+            fontSize: isMobile ? '0.875rem' : '1rem',
+            py: isMobile ? 1.5 : 1
+          }}
+        >
+          Create New List
+        </Button>
+        
+        <Button
+          variant="outlined"
+          startIcon={<MicIcon />}
+          onClick={() => setOpenVoiceCreateModal(true)}
+          sx={{
+            minWidth: isMobile ? '100%' : 'auto',
+            fontSize: isMobile ? '0.875rem' : '1rem',
+            py: isMobile ? 1.5 : 1
+          }}
+        >
+          Voice Create
+        </Button>
+
+        {lists.length > 0 && (
+          <>
+            <Button
+              variant="outlined"
               color="warning"
-              onClick={() => setResetAppDialog(true)} 
-              size="small"
+              onClick={() => setClearAllDialog(true)}
+              sx={{
+                minWidth: isMobile ? '100%' : 'auto',
+                fontSize: isMobile ? '0.875rem' : '1rem',
+                py: isMobile ? 1.5 : 1
+              }}
+            >
+              Clear All
+            </Button>
+            
+            <Button
+              variant="outlined"
+              color="error"
+              onClick={() => setResetDialog(true)}
+              sx={{
+                minWidth: isMobile ? '100%' : 'auto',
+                fontSize: isMobile ? '0.875rem' : '1rem',
+                py: isMobile ? 1.5 : 1
+              }}
             >
               Reset App
             </Button>
-          </Box>
-        </Box>
-        {lists.length === 0 ? (
-          <Box color="text.secondary" textAlign="center">
-            No lists yet. Create your first ingredient list!
-          </Box>
-        ) : (
-          <List>
+          </>
+        )}
+      </Box>
+
+      {lists.length > 0 ? (
+        <Box sx={{ 
+          maxHeight: isMobile ? '300px' : '400px', 
+          overflow: 'auto',
+          border: '1px solid',
+          borderColor: 'divider',
+          borderRadius: 1
+        }}>
+          <List dense={isMobile}>
             {lists.map((list) => (
-              <ListItem key={list.id} disablePadding>
-                <ListItemButton
-                  selected={currentListId === list.id}
-                  onClick={() => onListSelect(list.id)}
-                  sx={{ cursor: 'pointer' }}
-                >
-                  <ListItemText
-                    primary={list.name}
-                    secondary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                        <Typography variant="body2" color="textSecondary" component="span">
-                          {formatDate(list.createdAt)}
-                        </Typography>
-                        <Chip label={`${list.ingredients.length} ingredients`} size="small" variant="outlined" />
-                        <Chip label={`${list.numberOfPeople} people`} size="small" variant="outlined" color="primary" />
-                      </Box>
-                    }
-                  />
-                  <ListItemSecondaryAction>
-                    {onDownloadPDF && (
-                      <IconButton
-                        edge="end"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDownloadPDF(list);
-                        }}
-                        size="small"
-                        title="Download PDF"
-                      >
-                        <DownloadIcon />
-                      </IconButton>
-                    )}
-                    <IconButton
-                      edge="end"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(list.id, list.name);
+              <ListItemButton
+                key={list.id}
+                selected={currentListId === list.id}
+                onClick={() => onListSelect(list.id)}
+                sx={{
+                  border: '1px solid',
+                  borderColor: currentListId === list.id ? 'primary.main' : 'divider',
+                  borderRadius: 1,
+                  mb: 1,
+                  mx: 1,
+                  '&:hover': {
+                    backgroundColor: 'action.hover',
+                  },
+                }}
+              >
+                <ListItemText
+                  primary={
+                    <Typography 
+                      variant={isMobile ? "body2" : "body1"}
+                      sx={{ 
+                        fontWeight: currentListId === list.id ? 'bold' : 'normal',
+                        fontSize: isMobile ? '0.875rem' : '1rem'
                       }}
-                      size="small"
-                      title="Delete List"
                     >
-                      <DeleteIcon />
-                    </IconButton>
-                  </ListItemSecondaryAction>
-                </ListItemButton>
-              </ListItem>
+                      {list.name}
+                    </Typography>
+                  }
+                  secondary={
+                    <Box sx={{ 
+                      display: 'flex', 
+                      flexDirection: isMobile ? 'column' : 'row',
+                      gap: isMobile ? 0.5 : 1,
+                      alignItems: isMobile ? 'flex-start' : 'center',
+                      mt: isMobile ? 0.5 : 0
+                    }}>
+                      <Chip 
+                        label={`${list.ingredients.length} ingredients`} 
+                        size={isMobile ? "small" : "medium"}
+                        variant="outlined"
+                        sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
+                      />
+                      <Chip 
+                        label={`${list.numberOfPeople} people`} 
+                        size={isMobile ? "small" : "medium"}
+                        variant="outlined"
+                        color="primary"
+                        sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
+                      />
+                      <Typography 
+                        variant="caption" 
+                        color="text.secondary"
+                        sx={{ fontSize: isMobile ? '0.7rem' : '0.75rem' }}
+                      >
+                        {new Date(list.createdAt).toLocaleDateString()}
+                      </Typography>
+                    </Box>
+                  }
+                />
+                <ListItemSecondaryAction sx={{ 
+                  display: 'flex', 
+                  gap: isMobile ? 0.5 : 1,
+                  flexDirection: isMobile ? 'column' : 'row'
+                }}>
+                  <IconButton
+                    edge="end"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadListPDF(list);
+                    }}
+                    size={isMobile ? "small" : "medium"}
+                    sx={{ 
+                      color: 'primary.main',
+                      '&:hover': { backgroundColor: 'primary.light' }
+                    }}
+                  >
+                    <DownloadIcon fontSize={isMobile ? "small" : "medium"} />
+                  </IconButton>
+                  <IconButton
+                    edge="end"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteClick(list.id);
+                    }}
+                    size={isMobile ? "small" : "medium"}
+                    sx={{ 
+                      color: 'error.main',
+                      '&:hover': { backgroundColor: 'error.light' }
+                    }}
+                  >
+                    <DeleteIcon fontSize={isMobile ? "small" : "medium"} />
+                  </IconButton>
+                </ListItemSecondaryAction>
+              </ListItemButton>
             ))}
           </List>
-        )}
-        <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
-          <DialogTitle>Create New Ingredient List</DialogTitle>
-          <DialogContent>
-            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-              <TextField
-                autoFocus
-                margin="dense"
-                label="List Name"
-                fullWidth
-                variant="outlined"
-                value={newListName}
-                onChange={(e) => setNewListName(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleCreateList()}
-              />
-              <Button 
-                variant="outlined" 
-                startIcon={<MicIcon />} 
-                onClick={() => {
-                  setOpenDialog(false);
-                  setOpenVoiceModal(true);
-                }}
-                sx={{ minWidth: 'auto', px: 2 }}
-                title="Use Voice Input"
-              >
-                Voice
-              </Button>
-            </Box>
-            <Typography variant="body2" color="textSecondary">
-              Create a new ingredient list. You can type the name or use voice input in Gujarati, Hindi, or English.
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-            <Button onClick={handleCreateList} variant="contained">
-              Create
-            </Button>
-          </DialogActions>
-        </Dialog>
-        
-        {/* Voice Input Modal for creating new lists */}
-        <VoiceInputModal 
-          open={openVoiceModal} 
-          onClose={() => setOpenVoiceModal(false)} 
-          onVoiceInput={handleVoiceInput}
-          context="list"
-        />
+        </Box>
+      ) : (
+        <Box sx={{ 
+          textAlign: 'center', 
+          py: 4,
+          border: '2px dashed',
+          borderColor: 'divider',
+          borderRadius: 2
+        }}>
+          <Typography 
+            variant={isMobile ? "body2" : "body1"} 
+            color="text.secondary"
+            sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}
+          >
+            No lists created yet. Create your first ingredient list!
+          </Typography>
+        </Box>
+      )}
 
-        {/* Delete Confirmation Dialog */}
-        <Dialog open={deleteDialog.open} onClose={handleCancelDelete}>
-          <DialogTitle>Delete List</DialogTitle>
-          <DialogContent>
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              This action cannot be undone.
-            </Alert>
-            <Typography>
-              Are you sure you want to delete the list "{deleteDialog.listName}"?
-            </Typography>
-            <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-              This will permanently remove the list and all its ingredients.
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleCancelDelete}>Cancel</Button>
-            <Button onClick={handleConfirmDelete} color="error" variant="contained">
-              Delete
+      {/* Create New List Dialog */}
+      <Dialog 
+        open={openDialog} 
+        onClose={() => setOpenDialog(false)}
+        fullWidth
+        maxWidth={isMobile ? "xs" : "sm"}
+      >
+        <DialogTitle sx={{ fontSize: isMobile ? '1.1rem' : '1.25rem' }}>
+          Create New List
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: isMobile ? 'column' : 'row',
+            gap: 2,
+            mt: 1
+          }}>
+            <TextField
+              autoFocus
+              label="List Name"
+              value={newListName}
+              onChange={(e) => setNewListName(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleCreateList()}
+              fullWidth
+              size={isMobile ? "small" : "medium"}
+            />
+            <Button
+              variant="outlined"
+              startIcon={<MicIcon />}
+              onClick={() => {
+                setOpenDialog(false);
+                setOpenVoiceCreateModal(true);
+              }}
+              sx={{
+                minWidth: isMobile ? '100%' : 'auto',
+                fontSize: isMobile ? '0.875rem' : '1rem',
+                py: isMobile ? 1.5 : 1
+              }}
+            >
+              Voice
             </Button>
-          </DialogActions>
-        </Dialog>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: isMobile ? 2 : 3, pb: isMobile ? 2 : 3 }}>
+          <Button 
+            onClick={() => setOpenDialog(false)}
+            size={isMobile ? "small" : "medium"}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleCreateList} 
+            variant="contained"
+            disabled={!newListName.trim()}
+            size={isMobile ? "small" : "medium"}
+          >
+            Create List
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-        {/* Clear All Lists Confirmation Dialog */}
-        <Dialog open={clearAllDialog} onClose={() => setClearAllDialog(false)}>
-          <DialogTitle>Clear All Lists</DialogTitle>
-          <DialogContent>
-            <Alert severity="error" sx={{ mb: 2 }}>
-              This action cannot be undone.
-            </Alert>
-            <Typography>
-              Are you sure you want to delete ALL lists?
-            </Typography>
-            <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-              This will permanently remove all lists and their ingredients. This action cannot be undone.
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setClearAllDialog(false)}>Cancel</Button>
-            <Button onClick={handleClearAllLists} color="error" variant="contained">
-              Clear All Lists
-            </Button>
-          </DialogActions>
-        </Dialog>
+      {/* Delete Confirmation Dialog */}
+      <Dialog 
+        open={deleteDialog.open} 
+        onClose={handleCancelDelete}
+        maxWidth={isMobile ? "xs" : "sm"}
+        fullWidth
+      >
+        <DialogTitle sx={{ fontSize: isMobile ? '1.1rem' : '1.25rem' }}>
+          Delete List
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+            Are you sure you want to delete this list? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: isMobile ? 2 : 3, pb: isMobile ? 2 : 3 }}>
+          <Button 
+            onClick={handleCancelDelete}
+            size={isMobile ? "small" : "medium"}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleConfirmDelete} 
+            color="error" 
+            variant="contained"
+            size={isMobile ? "small" : "medium"}
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-        {/* Reset App Confirmation Dialog */}
-        <Dialog open={resetAppDialog} onClose={() => setResetAppDialog(false)}>
-          <DialogTitle>Reset App</DialogTitle>
-          <DialogContent>
-            <Alert severity="error" sx={{ mb: 2 }}>
-              This action cannot be undone.
-            </Alert>
-            <Typography>
-              Are you sure you want to reset the entire app?
-            </Typography>
-            <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-              This will permanently remove ALL data including lists, ingredients, and app settings. This action cannot be undone.
-            </Typography>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setResetAppDialog(false)}>Cancel</Button>
-            <Button onClick={handleResetApp} color="warning" variant="contained">
-              Reset App
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </CardContent>
-    </Card>
+      {/* Clear All Confirmation Dialog */}
+      <Dialog 
+        open={clearAllDialog} 
+        onClose={() => setClearAllDialog(false)}
+        maxWidth={isMobile ? "xs" : "sm"}
+        fullWidth
+      >
+        <DialogTitle sx={{ fontSize: isMobile ? '1.1rem' : '1.25rem' }}>
+          Clear All Lists
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+            Are you sure you want to delete all lists? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: isMobile ? 2 : 3, pb: isMobile ? 2 : 3 }}>
+          <Button 
+            onClick={() => setClearAllDialog(false)}
+            size={isMobile ? "small" : "medium"}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={() => {
+              onClearAllLists();
+              setClearAllDialog(false);
+            }} 
+            color="warning" 
+            variant="contained"
+            size={isMobile ? "small" : "medium"}
+          >
+            Clear All
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Reset App Confirmation Dialog */}
+      <Dialog 
+        open={resetDialog} 
+        onClose={() => setResetDialog(false)}
+        maxWidth={isMobile ? "xs" : "sm"}
+        fullWidth
+      >
+        <DialogTitle sx={{ fontSize: isMobile ? '1.1rem' : '1.25rem' }}>
+          Reset Application
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: isMobile ? '0.875rem' : '1rem' }}>
+            Are you sure you want to reset the entire application? This will delete all data and cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: isMobile ? 2 : 3, pb: isMobile ? 2 : 3 }}>
+          <Button 
+            onClick={() => setResetDialog(false)}
+            size={isMobile ? "small" : "medium"}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={() => {
+              onResetApp();
+              setResetDialog(false);
+            }} 
+            color="error" 
+            variant="contained"
+            size={isMobile ? "small" : "medium"}
+          >
+            Reset App
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Voice Input Modal for List Creation */}
+      <VoiceInputModal
+        open={openVoiceCreateModal}
+        onClose={() => setOpenVoiceCreateModal(false)}
+        onResult={handleVoiceInput}
+        context="list"
+      />
+    </Box>
   );
 };
 
