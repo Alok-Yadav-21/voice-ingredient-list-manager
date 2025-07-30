@@ -499,16 +499,21 @@ const IngredientList = ({ list, numberOfPeople, onUpdateList }: IngredientListPr
                     />
                     <ListItemSecondaryAction sx={{ 
                       display: 'flex', 
-                      gap: isMobile ? 0.5 : 1,
+                      gap: isMobile ? 1.5 : 2,
                       flexDirection: isMobile ? 'column' : 'row'
                     }}>
                       <IconButton
                         onClick={() => toggleExpanded(ingredient.id)}
-                        size={isMobile ? "small" : "medium"}
+                        size={isMobile ? "medium" : "medium"}
+                        sx={{ 
+                          minWidth: isMobile ? '44px' : 'auto',
+                          minHeight: isMobile ? '44px' : 'auto',
+                          color: 'primary.main'
+                        }}
                       >
                         {expandedItems.has(ingredient.id) ? 
-                          <ExpandLessIcon fontSize={isMobile ? "small" : "medium"} /> : 
-                          <ExpandMoreIcon fontSize={isMobile ? "small" : "medium"} />
+                          <ExpandLessIcon fontSize={isMobile ? "medium" : "medium"} /> : 
+                          <ExpandMoreIcon fontSize={isMobile ? "medium" : "medium"} />
                         }
                       </IconButton>
                       
@@ -517,10 +522,14 @@ const IngredientList = ({ list, numberOfPeople, onUpdateList }: IngredientListPr
                           setSelectedParentIngredient(ingredient);
                           setOpenSubIngredientDialog(true);
                         }}
-                        size={isMobile ? "small" : "medium"}
-                        sx={{ color: 'success.main' }}
+                        size={isMobile ? "medium" : "medium"}
+                        sx={{ 
+                          minWidth: isMobile ? '44px' : 'auto',
+                          minHeight: isMobile ? '44px' : 'auto',
+                          color: 'success.main'
+                        }}
                       >
-                        <AddIcon fontSize={isMobile ? "small" : "medium"} />
+                        <AddIcon fontSize={isMobile ? "medium" : "medium"} />
                       </IconButton>
                       
                       <IconButton
@@ -528,18 +537,26 @@ const IngredientList = ({ list, numberOfPeople, onUpdateList }: IngredientListPr
                           setEditingId(ingredient.id);
                           setEditValue(ingredient.name);
                         }}
-                        size={isMobile ? "small" : "medium"}
-                        sx={{ color: 'primary.main' }}
+                        size={isMobile ? "medium" : "medium"}
+                        sx={{ 
+                          minWidth: isMobile ? '44px' : 'auto',
+                          minHeight: isMobile ? '44px' : 'auto',
+                          color: 'primary.main'
+                        }}
                       >
-                        <EditIcon fontSize={isMobile ? "small" : "medium"} />
+                        <EditIcon fontSize={isMobile ? "medium" : "medium"} />
                       </IconButton>
                       
                       <IconButton
                         onClick={() => deleteIngredient(ingredient.id)}
-                        size={isMobile ? "small" : "medium"}
-                        sx={{ color: 'error.main' }}
+                        size={isMobile ? "medium" : "medium"}
+                        sx={{ 
+                          minWidth: isMobile ? '44px' : 'auto',
+                          minHeight: isMobile ? '44px' : 'auto',
+                          color: 'error.main'
+                        }}
                       >
-                        <DeleteIcon fontSize={isMobile ? "small" : "medium"} />
+                        <DeleteIcon fontSize={isMobile ? "medium" : "medium"} />
                       </IconButton>
                     </ListItemSecondaryAction>
                   </ListItem>
