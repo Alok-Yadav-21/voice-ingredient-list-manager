@@ -245,7 +245,7 @@ const IngredientList = ({ list, numberOfPeople, onUpdateList }: IngredientListPr
     tempDiv.style.fontFamily = 'Arial, sans-serif';
     tempDiv.style.backgroundColor = 'white';
     tempDiv.style.color = 'black';
-    tempDiv.style.fontSize = '19px';
+    tempDiv.style.fontSize = '24px';
     tempDiv.style.lineHeight = '1.6';
     
     // Create clean HTML content for PDF
