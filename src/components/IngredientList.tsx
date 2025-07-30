@@ -454,20 +454,24 @@ const IngredientList = ({ list, numberOfPeople, onUpdateList }: IngredientListPr
                   <ListItem sx={{ 
                     borderBottom: '1px solid',
                     borderColor: 'divider',
-                    '&:last-child': { borderBottom: 'none' }
+                    '&:last-child': { borderBottom: 'none' },
+                    padding: isMobile ? '8px 12px' : '16px',
+                    alignItems: 'center'
                   }}>
                     <ListItemText
                       primary={
                         <Box sx={{ 
                           display: 'flex', 
                           alignItems: 'center',
-                          gap: 1
+                          gap: 1,
+                          flexWrap: 'wrap'
                         }}>
                           <Typography 
                             variant={isMobile ? "body2" : "body1"}
                             sx={{ 
                               fontWeight: 'bold',
-                              fontSize: isMobile ? '0.875rem' : '1rem'
+                              fontSize: isMobile ? '0.875rem' : '1rem',
+                              minWidth: isMobile ? '120px' : 'auto'
                             }}
                           >
                             {editingId === ingredient.id ? (
@@ -487,33 +491,43 @@ const IngredientList = ({ list, numberOfPeople, onUpdateList }: IngredientListPr
                               ingredient.name
                             )}
                           </Typography>
-                          <Chip 
-                            label={`${subIngredients.length} sub-ingredients`} 
-                            size={isMobile ? "small" : "medium"}
-                            variant="outlined"
-                            color="primary"
-                            sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
-                          />
+                          {subIngredients.length > 0 && (
+                            <Chip 
+                              label={`${subIngredients.length}`} 
+                              size={isMobile ? "small" : "medium"}
+                              variant="outlined"
+                              color="primary"
+                              sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
+                            />
+                          )}
                         </Box>
                       }
+                      sx={{
+                        flex: '1 1 auto',
+                        marginRight: isMobile ? '8px' : '0px'
+                      }}
                     />
                     <ListItemSecondaryAction sx={{ 
                       display: 'flex', 
-                      gap: isMobile ? 1.5 : 2,
-                      flexDirection: isMobile ? 'column' : 'row'
+                      gap: isMobile ? 0.5 : 2,
+                      flexDirection: isMobile ? 'row' : 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center'
                     }}>
                       <IconButton
                         onClick={() => toggleExpanded(ingredient.id)}
-                        size={isMobile ? "medium" : "medium"}
+                        size={isMobile ? "small" : "medium"}
                         sx={{ 
-                          minWidth: isMobile ? '44px' : 'auto',
-                          minHeight: isMobile ? '44px' : 'auto',
-                          color: 'primary.main'
+                          color: 'primary.main',
+                          '&:hover': {
+                            backgroundColor: 'primary.light',
+                            opacity: 0.8
+                          }
                         }}
                       >
                         {expandedItems.has(ingredient.id) ? 
-                          <ExpandLessIcon fontSize={isMobile ? "medium" : "medium"} /> : 
-                          <ExpandMoreIcon fontSize={isMobile ? "medium" : "medium"} />
+                          <ExpandLessIcon fontSize={isMobile ? "small" : "medium"} /> : 
+                          <ExpandMoreIcon fontSize={isMobile ? "small" : "medium"} />
                         }
                       </IconButton>
                       
@@ -522,14 +536,16 @@ const IngredientList = ({ list, numberOfPeople, onUpdateList }: IngredientListPr
                           setSelectedParentIngredient(ingredient);
                           setOpenSubIngredientDialog(true);
                         }}
-                        size={isMobile ? "medium" : "medium"}
+                        size={isMobile ? "small" : "medium"}
                         sx={{ 
-                          minWidth: isMobile ? '44px' : 'auto',
-                          minHeight: isMobile ? '44px' : 'auto',
-                          color: 'success.main'
+                          color: 'success.main',
+                          '&:hover': {
+                            backgroundColor: 'success.light',
+                            opacity: 0.8
+                          }
                         }}
                       >
-                        <AddIcon fontSize={isMobile ? "medium" : "medium"} />
+                        <AddIcon fontSize={isMobile ? "small" : "medium"} />
                       </IconButton>
                       
                       <IconButton
@@ -537,26 +553,30 @@ const IngredientList = ({ list, numberOfPeople, onUpdateList }: IngredientListPr
                           setEditingId(ingredient.id);
                           setEditValue(ingredient.name);
                         }}
-                        size={isMobile ? "medium" : "medium"}
+                        size={isMobile ? "small" : "medium"}
                         sx={{ 
-                          minWidth: isMobile ? '44px' : 'auto',
-                          minHeight: isMobile ? '44px' : 'auto',
-                          color: 'primary.main'
+                          color: 'primary.main',
+                          '&:hover': {
+                            backgroundColor: 'primary.light',
+                            opacity: 0.8
+                          }
                         }}
                       >
-                        <EditIcon fontSize={isMobile ? "medium" : "medium"} />
+                        <EditIcon fontSize={isMobile ? "small" : "medium"} />
                       </IconButton>
                       
                       <IconButton
                         onClick={() => deleteIngredient(ingredient.id)}
-                        size={isMobile ? "medium" : "medium"}
+                        size={isMobile ? "small" : "medium"}
                         sx={{ 
-                          minWidth: isMobile ? '44px' : 'auto',
-                          minHeight: isMobile ? '44px' : 'auto',
-                          color: 'error.main'
+                          color: 'error.main',
+                          '&:hover': {
+                            backgroundColor: 'error.light',
+                            opacity: 0.8
+                          }
                         }}
                       >
-                        <DeleteIcon fontSize={isMobile ? "medium" : "medium"} />
+                        <DeleteIcon fontSize={isMobile ? "small" : "medium"} />
                       </IconButton>
                     </ListItemSecondaryAction>
                   </ListItem>
@@ -614,7 +634,7 @@ const IngredientList = ({ list, numberOfPeople, onUpdateList }: IngredientListPr
                             color="text.secondary"
                             sx={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}
                           >
-                            No sub-ingredients yet. Click the + button to add some!
+                            Click + to add items
                           </Typography>
                         </Box>
                       )}
