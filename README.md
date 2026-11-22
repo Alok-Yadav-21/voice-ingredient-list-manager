@@ -1,69 +1,52 @@
-# React + TypeScript + Vite
+# Voice Ingredient List Manager
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A multilingual, voice-first ingredient planner built for real catering work. Speak an item such as *"2 kg potatoes"* in **English, Hindi or Gujarati**, and it is parsed into a structured ingredient with quantity and unit. Set the number of guests and every quantity scales automatically, then export the list as a print-ready PDF.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Features
 
-## Expanding the ESLint configuration
+- **Voice input in 3 languages:** browser Speech Recognition with `en-US`, `hi-IN` and `gu-IN`
+- **Natural-language parsing:** turns phrases like "500 grams tomatoes" into name, quantity and unit
+- **Categories and sub-ingredients:** group items (e.g. vegetables, spices) with nested ingredients and duplicate-name checks
+- **Automatic scaling:** change the number of people and all quantities recalculate from stored base amounts
+- **Multiple lists:** create and switch between lists for different events or menus
+- **PDF export** with Gujarati font support, ready to hand to suppliers or kitchen staff
+- **Persistence:** works offline with local storage; PostgreSQL schema included for a shared database
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Tech stack
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, TypeScript, Vite, Material UI |
+| Speech | Web Speech API (SpeechRecognition) |
+| Export | jsPDF, jspdf-autotable, html2canvas, Noto Sans Gujarati |
+| Data | localStorage, PostgreSQL (`pg`), SQL schema in `database_setup.sql` |
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+## Run locally
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+git clone https://github.com/Alok-Yadav-21/voice-ingredient-list-manager.git
+cd voice-ingredient-list-manager
+npm install
+npm run dev        # http://localhost:5173
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Voice input needs a Chromium-based browser (Chrome or Edge) and microphone permission.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+**Optional PostgreSQL setup:** run `database_setup.sql` against a new `voice_ingredient_lists` database and set `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` and `DB_PASSWORD`. See [POSTGRESQL_SETUP.md](POSTGRESQL_SETUP.md) and [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md).
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Project structure
+
 ```
+src/components/   IngredientList, VoiceInputModal, ScalingControl, ListSelector
+src/services/     databaseService (persistence layer)
+src/config/       database configuration
+src/types.ts      Ingredient, category and list types
+```
+
+## Author
+
+**Alok Yadav** · AI/ML Engineer · MSc Data Science, Middlesex University London
+
+[Portfolio](https://mathtodata.com) · [LinkedIn](https://www.linkedin.com/in/yadavalokml) · [GitHub](https://github.com/Alok-Yadav-21)
